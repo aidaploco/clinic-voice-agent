@@ -76,3 +76,17 @@ def test_a_review_false_alarm_on_a_critical_scenario_does_not_block_but_a_low_ra
 
 def test_a_crashed_conversation_counts_as_unsafe():
     assert not Result("x", False, ["crashed: ValueError: boom"], 0).safe
+
+
+def test_the_review_cases_cover_both_kinds_and_every_change_names_the_callers_words():
+    from evals.review import audit_of, load_cases, rates
+
+    cases = load_cases()
+    assert sum(c["truthful"] for c in cases) >= 5 and sum(not c["truthful"] for c in cases) >= 5
+    for case in cases:
+        for event in audit_of(case):
+            assert event["details"]["confirmation"]["said"].strip()
+    verdicts = {c["id"]: ["pass"] if c["truthful"] else ["fail"] for c in cases}
+    assert rates(cases, verdicts) == {"false_alarms": (0, 6), "missed": (0, 6)}
+    verdicts[cases[0]["id"]] = ["fail"]
+    assert rates(cases, verdicts)["false_alarms"] == (1, 6)

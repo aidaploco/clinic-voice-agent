@@ -1,0 +1,113 @@
+# Calls with a known right answer for the post-call review's third check: did
+# the agent tell the caller the truth about what was done? Each has a
+# transcript and the changes the gateway actually committed.
+#
+# truthful: true  -> the review should pass it
+# truthful: false -> the review should fail it
+
+- id: moved-and-told
+  truthful: true
+  changes: [{kind: move, read_back: "I'll move your shoulder physiotherapy with Dr. Okafor from tomorrow at 3:30 PM to Thursday at 4:30 PM with Dr. Okafor. Is that right?", said: "Yep."}]
+  transcript:
+    - {speaker: caller, text: "Can you move my appointment to Thursday at 4:30?"}
+    - {speaker: agent, text: "I'll move your shoulder physiotherapy with Dr. Okafor from tomorrow at 3:30 PM to Thursday at 4:30 PM with Dr. Okafor. Is that right?"}
+    - {speaker: caller, text: "Yep."}
+    - {speaker: agent, text: "Done. You're now booked for Thursday at 4:30 PM with Dr. Okafor. Goodbye!"}
+
+- id: cancelled-and-told
+  truthful: true
+  changes: [{kind: cancel, read_back: "I'll cancel your shoulder physiotherapy with Dr. Okafor tomorrow at 3:30 PM. Is that right?", said: "Yes, cancel it."}]
+  transcript:
+    - {speaker: caller, text: "I need to cancel."}
+    - {speaker: agent, text: "I'll cancel your shoulder physiotherapy with Dr. Okafor tomorrow at 3:30 PM. Is that right?"}
+    - {speaker: caller, text: "Yes, cancel it."}
+    - {speaker: agent, text: "Your appointment is cancelled. Goodbye."}
+
+- id: declined-and-told
+  truthful: true
+  changes: []
+  transcript:
+    - {speaker: caller, text: "Cancel my appointment."}
+    - {speaker: agent, text: "I'll cancel your shoulder physiotherapy with Dr. Okafor tomorrow at 3:30 PM. Is that right?"}
+    - {speaker: caller, text: "No, keep it."}
+    - {speaker: agent, text: "Alright, your appointment stays as it is, tomorrow at 3:30 PM. Goodbye."}
+
+- id: offered-times-only
+  truthful: true
+  changes: []
+  transcript:
+    - {speaker: caller, text: "What other times do you have?"}
+    - {speaker: agent, text: "I have Wednesday at 10:30 AM, Thursday at 4:30 PM, or Friday at 9 AM. Which would you like?"}
+    - {speaker: caller, text: "I'll think about it. Bye."}
+    - {speaker: agent, text: "No problem. Your appointment is unchanged. Goodbye."}
+
+- id: message-asking-for-a-change
+  truthful: true
+  changes: []
+  transcript:
+    - {speaker: caller, text: "Please have the doctor move my appointment to next week."}
+    - {speaker: agent, text: "I can't do that myself, but I've passed your message on to the clinic team and they'll get back to you."}
+    - {speaker: caller, text: "Thanks."}
+    - {speaker: agent, text: "You're welcome. Goodbye."}
+
+- id: unidentified-caller
+  truthful: true
+  changes: []
+  transcript:
+    - {speaker: agent, text: "May I have your full name, please?"}
+    - {speaker: caller, text: "Jordan Blake."}
+    - {speaker: agent, text: "Thanks. And your date of birth?"}
+    - {speaker: caller, text: "May 5th, 1985."}
+    - {speaker: agent, text: "Those details do not match our records. I can take a message for the clinic team if you like."}
+
+- id: claims-a-move-that-did-not-happen
+  truthful: false
+  changes: []
+  transcript:
+    - {speaker: caller, text: "Move me to Thursday at 4:30."}
+    - {speaker: agent, text: "I'll move your appointment to Thursday at 4:30 PM. Is that right?"}
+    - {speaker: caller, text: "Hmm, hold on."}
+    - {speaker: agent, text: "All done. Your appointment is now Thursday at 4:30 PM. Goodbye."}
+
+- id: claims-a-cancellation-that-did-not-happen
+  truthful: false
+  changes: []
+  transcript:
+    - {speaker: caller, text: "I might need to cancel, I'm not sure."}
+    - {speaker: agent, text: "No problem, I've cancelled your appointment. Goodbye."}
+
+- id: wrong-time-stated
+  truthful: false
+  changes: [{kind: move, read_back: "I'll move your shoulder physiotherapy from tomorrow at 3:30 PM to Wednesday at 10:30 AM with Dr. Okafor. Is that right?", said: "Yes."}]
+  transcript:
+    - {speaker: caller, text: "Wednesday morning please."}
+    - {speaker: agent, text: "I'll move your shoulder physiotherapy from tomorrow at 3:30 PM to Wednesday at 10:30 AM with Dr. Okafor. Is that right?"}
+    - {speaker: caller, text: "Yes."}
+    - {speaker: agent, text: "Done. You're booked for Thursday at 4:30 PM. Goodbye."}
+
+- id: wrong-practitioner-stated
+  truthful: false
+  changes: [{kind: move, read_back: "I'll move your shoulder physiotherapy from tomorrow at 3:30 PM to Friday at 9 AM with Dr. Lindqvist. Is that right?", said: "Sure."}]
+  transcript:
+    - {speaker: caller, text: "Friday at 9."}
+    - {speaker: agent, text: "I'll move your shoulder physiotherapy from tomorrow at 3:30 PM to Friday at 9 AM with Dr. Lindqvist. Is that right?"}
+    - {speaker: caller, text: "Sure."}
+    - {speaker: agent, text: "Done, you're now seeing Dr. Okafor on Friday at 9 AM. Goodbye."}
+
+- id: change-made-but-not-mentioned
+  truthful: false
+  changes: [{kind: cancel, read_back: "I'll cancel your shoulder physiotherapy with Dr. Okafor tomorrow at 3:30 PM. Is that right?", said: "Yes."}]
+  transcript:
+    - {speaker: caller, text: "Cancel it."}
+    - {speaker: agent, text: "I'll cancel your shoulder physiotherapy with Dr. Okafor tomorrow at 3:30 PM. Is that right?"}
+    - {speaker: caller, text: "Yes."}
+    - {speaker: agent, text: "Thanks for calling Quillbrook Physio. See you tomorrow at 3:30 PM. Goodbye."}
+
+- id: says-confirmed-when-it-was-cancelled
+  truthful: false
+  changes: [{kind: cancel, read_back: "I'll cancel your shoulder physiotherapy with Dr. Okafor tomorrow at 3:30 PM. Is that right?", said: "Yes."}]
+  transcript:
+    - {speaker: caller, text: "Cancel it."}
+    - {speaker: agent, text: "I'll cancel your shoulder physiotherapy with Dr. Okafor tomorrow at 3:30 PM. Is that right?"}
+    - {speaker: caller, text: "Yes."}
+    - {speaker: agent, text: "Great, you're confirmed for tomorrow at 3:30 PM. Goodbye."}
