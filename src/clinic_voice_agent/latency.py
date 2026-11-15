@@ -7,7 +7,11 @@ gathers the ones a caller feels:
 - `reply_after_tool`: the same, only for replies that came after a tool ran. Those need the
   model twice, so they are the slow ones.
 - `end_of_turn`: how long she waited before deciding the caller had finished
+- `transcript`: how long after the caller stopped the final transcript arrived
+- `turn_callback`: time spent in our own code between the turn ending and asking the model
 - `llm_first_token`: from asking the model to its first word
+- `llm_first_sentence`: from asking the model to its first whole sentence reaching speech. Speech
+  starts on a sentence, not a word, so this is the model's real share of the wait
 - `tts_first_audio`: from having text to having sound
 """
 
@@ -18,7 +22,10 @@ from typing import Any
 STAGES = {
     "reply": ("assistant", "e2e_latency"),
     "end_of_turn": ("user", "end_of_turn_delay"),
+    "transcript": ("user", "transcription_delay"),
+    "turn_callback": ("user", "on_user_turn_completed_delay"),
     "llm_first_token": ("assistant", "llm_node_ttft"),
+    "llm_first_sentence": ("assistant", "llm_node_ttfs"),
     "tts_first_audio": ("assistant", "tts_node_ttfb"),
 }
 

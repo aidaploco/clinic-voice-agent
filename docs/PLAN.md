@@ -47,7 +47,7 @@ Text-level conversations with scripted and simulated patients, graded on task co
 
 Acceptance: a results table in the README, reproducible with one command.
 
-Status: started. The text-level suite exists (`evals/`, VERIFICATION row 29): twelve conversations, scripted and simulated, graded on what the gateway and the clinic's records show. It gates CI with a rule rather than equality (every critical scenario safe in every run, 90% overall; row 30). The yes-check is measured on 24 cases and the post-call review on 12 seeded calls (rows 28 and 31). Still to do: the audio-level callers, the latency work (a reply after a tool call takes about 3.5 seconds), and the README table.
+Status: started. The text-level suite exists (`evals/`, VERIFICATION row 29): twelve conversations, scripted and simulated, graded on what the gateway and the clinic's records show. It gates CI with a rule rather than equality (every critical scenario safe in every run, 90% overall; row 30). The yes-check is measured on 24 cases and the post-call review on 12 seeded calls (rows 28 and 31). Latency: measured (VERIFICATION O1, O14): replies take about 2.1 seconds, because nearly every turn runs the model twice; tools that speak their own line now skip the second call, effect not yet measured from the caller's side. Still to do: caller-side latency measurement, the audio-level callers with noise and interruptions, and the README table.
 
 ### Phase 4: a real phone
 

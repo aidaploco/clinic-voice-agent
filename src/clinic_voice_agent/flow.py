@@ -17,8 +17,9 @@ from typing import Literal
 
 from livekit.agents import Agent, RunContext, ToolError, function_tool
 from livekit.agents.beta.tools import EndCallTool
+from livekit.agents.llm import ToolResult
 
-from clinic_voice_agent.gateway import Gateway, Refused
+from clinic_voice_agent.gateway import Gateway, Offer, Refused
 from clinic_voice_agent.spoken import say_when
 
 CLINIC_NAME = "Quillbrook Physio"
@@ -153,6 +154,17 @@ for each thing they ask.
         return "The message has been passed to the clinic team."
 
 
+def offer_sentence(offers: list[Offer]) -> str:
+    """The sentence that offers the free times. Code words it, so no second model call is needed."""
+    names = {offer.practitioner for offer in offers}
+    times = [
+        offer.when if len(names) == 1 else f"{offer.when} with {offer.practitioner}"
+        for offer in offers
+    ]
+    listed = times[0] if len(times) == 1 else ", ".join(times[:-1]) + f", or {times[-1]}"
+    return f"I can offer you {listed}. Which would you like?"
+
+
 class HelpWithAppointment(Agent):
     """Step two: the caller has passed the identity check. Their appointment can be changed."""
 
@@ -177,12 +189,13 @@ checked. {about}
 
 What you can do, with your tools:
 - Confirm the appointment, cancel it, or move it to a free time.
-- To move it, call `find_free_slots` and offer the times it returns, all in one sentence. \
-Offer no other times. If they want a time that is not in that list, say you do not have it.
+- To move it, call `find_free_slots`. It offers the times to the caller aloud itself, so \
+say nothing more after it. Offer no other times. If they want a time that is not in that \
+list, say you do not have it.
 - Every change takes two steps. The moment the caller asks to cancel, to confirm, or picks \
-one of the offered times, call `propose_change`. It changes nothing and gives you the \
-question to ask. Ask exactly that question and stop. Do not ask "are you sure" in your own \
-words first: the tool's question is the only confirmation there is.
+one of the offered times, call `propose_change`. It changes nothing and asks the caller the \
+question aloud itself, so say nothing more after it and wait for their answer. Do not ask \
+"are you sure" in your own words: the tool's question is the only confirmation there is.
 - Only after the caller has answered that question, call `commit_change`. It decides for \
 itself whether the caller said yes.
 - Never tell the caller something was changed unless `commit_change` said so.
@@ -206,18 +219,22 @@ they are coming. Never start a change as the call is ending.
         )
 
     @function_tool
-    async def find_free_slots(self, ctx: RunContext[CallState]) -> list[dict[str, str]]:
-        """Look up the free times the appointment could be moved to."""
+    async def find_free_slots(self, ctx: RunContext[CallState]) -> ToolResult:
+        """Look up the free times the appointment could be moved to, and offer them aloud."""
         try:
             offers = ctx.userdata.gateway.offer_slots()
         except Refused as refused:
             raise ToolError(str(refused)) from None
         if not offers:
             raise ToolError("There are no free times. Offer to take a message for the clinic team.")
-        return [
-            {"option": offer.id, "when": offer.when, "practitioner": offer.practitioner}
-            for offer in offers
-        ]
+        ctx.session.say(offer_sentence(offers))
+        return ToolResult(
+            [
+                {"option": offer.id, "when": offer.when, "practitioner": offer.practitioner}
+                for offer in offers
+            ],
+            reply_required=False,  # she has already offered the times; nothing more to say
+        )
 
     @function_tool
     async def propose_change(
@@ -225,8 +242,8 @@ they are coming. Never start a change as the call is ending.
         ctx: RunContext[CallState],
         change: Literal["move", "cancel", "confirm"],
         option: str | None = None,
-    ) -> str:
-        """Prepare a change to the appointment and get the sentence to read back. Changes nothing.
+    ) -> ToolResult:
+        """Prepare a change to the appointment and ask the caller to confirm it. Changes nothing.
 
         Args:
             change: "move" to another time, "cancel" it, or "confirm" the caller is coming.
@@ -237,9 +254,11 @@ they are coming. Never start a change as the call is ending.
             proposal = ctx.userdata.gateway.propose(change, turn, option)
         except Refused as refused:
             raise ToolError(str(refused)) from None
-        return (
-            f'Nothing has changed yet. Ask the caller exactly this: "{proposal.read_back}" '
-            "Then wait for their answer before calling `commit_change`."
+        ctx.session.say(proposal.read_back)
+        return ToolResult(
+            "Nothing has changed yet. The question has been put to the caller. "
+            "Wait for their answer, then call `commit_change`.",
+            reply_required=False,
         )
 
     @function_tool

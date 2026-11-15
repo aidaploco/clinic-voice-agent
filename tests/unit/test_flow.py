@@ -64,3 +64,23 @@ def test_the_greeting_says_who_answers_and_that_it_is_automated():
     assert "Quillbrook Physio" in GREETING and "Emily" in GREETING and "automated" in GREETING
     for private in ("Alex", "appointment", "Okafor"):
         assert private not in GREETING
+
+
+def test_the_offer_sentence_lists_the_times_and_names_practitioners_only_when_they_differ():
+    from clinic_voice_agent.flow import offer_sentence
+    from clinic_voice_agent.gateway import Offer
+
+    same = [
+        Offer("a", "Tuesday at 10:30 AM", "Dr. Okafor"),
+        Offer("b", "Thursday at 9 AM", "Dr. Okafor"),
+    ]
+    assert (
+        offer_sentence(same)
+        == "I can offer you Tuesday at 10:30 AM, or Thursday at 9 AM. Which would you like?"
+    )
+    mixed = [*same[:1], Offer("c", "Friday at 9 AM", "Dr. Lindqvist")]
+    assert offer_sentence(mixed) == (
+        "I can offer you Tuesday at 10:30 AM with Dr. Okafor, "
+        "or Friday at 9 AM with Dr. Lindqvist. Which would you like?"
+    )
+    assert offer_sentence(same[:1]) == "I can offer you Tuesday at 10:30 AM. Which would you like?"

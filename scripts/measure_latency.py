@@ -32,7 +32,10 @@ ROWS = [
     ("reply", "Caller finishes -> her voice starts (all replies)"),
     ("reply_after_tool", "Same, only replies that follow a tool call"),
     ("end_of_turn", "Waiting to be sure the caller has finished"),
+    ("transcript", "Final transcript arrives after the caller stops"),
+    ("turn_callback", "Our code between turn end and the model call"),
     ("llm_first_token", "Model: first word"),
+    ("llm_first_sentence", "Model: first whole sentence reaches speech"),
     ("tts_first_audio", "Speech: first sound"),
 ]
 
