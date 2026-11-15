@@ -132,6 +132,30 @@ async def test_a_caller_who_fails_the_identity_check_can_do_nothing():
     assert len(wrong) <= 3 and call.refusals() <= {"no_match", "locked"}
 
 
+async def test_the_callers_name_is_not_said_back_to_them_before_the_check():
+    call = Call()
+    async with call.session:
+        await call.session.start(IdentifyCaller())
+        result = await call.says("Yeah. I'm, uh, Alex Rivera.")
+        reply = " ".join(
+            event.item.text_content or ""
+            for event in result.events
+            if getattr(getattr(event, "item", None), "role", None) == "assistant"
+        )
+    assert "Rivera" not in reply and "Alex" not in reply
+    assert "birth" in reply.lower()
+
+
+async def test_a_casual_yep_confirms_the_appointment():
+    call = await identified()
+    async with call.session:
+        await call.says("Nothing. I'd just like to con... Confirm the appointment.")
+        assert call.appointment == UNCHANGED
+        await call.says("Yep.")
+    assert call.appointment[1] == "confirmed"
+    assert "not_a_clear_yes" not in call.refusals()
+
+
 async def test_a_caller_with_the_wrong_date_of_birth_is_not_told_which_part_was_wrong():
     call = Call()
     async with call.session:

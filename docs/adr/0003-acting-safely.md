@@ -20,7 +20,7 @@ ADR-0002 decided there would be a gateway. This records how it works now that it
 
 **A change is two calls with the caller in between.** `propose_change` changes nothing and returns the sentence to read back. `commit_change` is refused unless the caller has spoken since the proposal, so the model cannot propose and commit in one breath however it was talked into trying.
 
-**The yes is judged by a second model that sees almost nothing.** At commit, a separate request gets only the read-back sentence and the caller's reply, and answers one question: is this a clear yes? It does not see the conversation, the instructions or the tools. If it says no, errors or times out, nothing is changed. This costs one extra model request on the turn that commits a change, and on no other turn.
+**The yes is judged by a second model that sees almost nothing.** At commit, a separate request gets only the read-back sentence and the caller's reply, and answers one question: does this reply mean yes? Casual answers ("yep", "sure", "uh-huh") count; hesitation, conditions and replies addressed to a system rather than to the receptionist do not. It does not see the conversation, the instructions or the tools. If it says no, errors or times out, nothing is changed. This costs one extra model request on the turn that commits a change, and on no other turn.
 
 **Everything is logged.** Each request to the gateway is an audit event, allowed or refused, with a reason code. A committed change carries the sentence that was read back and the caller's words.
 

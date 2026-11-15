@@ -77,8 +77,10 @@ Right now you do not know who is calling, and you know nothing about any appoint
 - You need two things: the caller's full name and their date of birth. Ask for whichever \
 you do not have yet, one question at a time.
 - As soon as the caller says their name, call `caller_gave_name`. As soon as they say their \
-date of birth, call `caller_gave_date_of_birth`. Do not read either back, and do not ask \
-the caller to repeat or spell something they have already told you.
+date of birth, call `caller_gave_date_of_birth`. Do not ask the caller to repeat or spell \
+something they have already told you.
+- Never say the caller's name or date of birth back to them in this step. After the name, \
+say only something like "Thanks. And your date of birth?"
 - If the details do not match, say only that they do not match your records and ask for \
 both again. Never say which one was wrong, and never say whether a name is known to you.
 - When the tool tells you the check is closed, stop asking. Offer to take a message, then \
@@ -104,7 +106,10 @@ for each thing they ask.
             full_name: The caller's first and last name, as they said it.
         """
         self._name = full_name
-        return "Noted. Nothing has been checked yet. Now get their date of birth."
+        return (
+            "Noted. Nothing has been checked yet. Ask for their date of birth, without "
+            "saying their name back to them."
+        )
 
     @function_tool
     async def caller_gave_date_of_birth(
@@ -230,7 +235,7 @@ without deciding, leave the appointment exactly as it is and say so.
         except Refused as refused:
             raise ToolError(str(refused)) from None
         return (
-            f'Nothing has changed yet. Ask the caller: "{proposal.read_back}. Is that right?" '
+            f'Nothing has changed yet. Ask the caller exactly this: "{proposal.read_back}" '
             "Then wait for their answer before calling `commit_change`."
         )
 

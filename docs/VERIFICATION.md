@@ -33,6 +33,7 @@ What has been proven by running it, and what is still believed from documentatio
 | 25 | By voice: a wrong proposal is stopped at the read-back | scripted call in which the model proposed a time the caller had not chosen; the caller said no; the appointment was unchanged and the record says so | 2026-11-14 |
 | 26 | A call is stored in Postgres whole or not at all: the call, its transcript, the audit log and the review | store tests against a real Postgres (also in CI, as a service container); a voice call's rows read back with `psql` | 2026-11-14 |
 | 27 | The post-call review runs on real calls and reports per check | three checks recorded for each scripted voice call, all passing; unit tests show the two log checks failing on a change with no identity check, no proposal or no confirmation | 2026-11-14 |
+| 28 | The owner's own call, at a microphone: identity check, a confirmation read back, and the appointment confirmed. Two faults she found are fixed: the agent said her full name back to her, and "Yep." was not accepted as a yes | her call's record; then a conversation test that the name is not repeated, a conversation test replaying her lines with "Yep.", and 24 tests of the yes-check alone (15 ways of saying yes in four languages, 9 replies that are not one) | 2026-11-15 |
 
 ## Open observations
 
@@ -40,12 +41,13 @@ What has been proven by running it, and what is still believed from documentatio
 |---|---|---|
 | O1 | Replies take about 1.6 to 1.7 seconds from the caller finishing to her voice starting (the framework's own end-to-end figure, median over three scripted calls), and up to 2.4 seconds when a tool runs. Under a second is the usual target for a phone conversation. | Phase 3: speak a short filler while a tool runs, start thinking before the turn is certain, measure across many calls. |
 | O2 | In the first voice run the agent marked the appointment confirmed when the caller had only said goodbye. A prompt rule and a behaviour test now cover it, but a prompt is not enforcement. | Closed in Phase 2 (rows 21, 22). |
-| O3 | The owner's first spoken call failed: the text-to-speech account had run out of credit, so the agent's replies came back empty and she went silent mid-call; and the turn detector waited its full ceiling before every reply. Both are fixed (rows 12 to 15) and the failed call passes when replayed by the scripted caller, but a person has not yet repeated it at a microphone. Interruptions are untested. | Needs the owner. |
+| O3 | The owner's first spoken call failed: the text-to-speech account had run out of credit, so the agent's replies came back empty and she went silent mid-call; and the turn detector waited its full ceiling before every reply. Both are fixed (rows 12 to 15) and the failed call passes when replayed by the scripted caller, and the owner has since held a spoken call that worked (row 28). Interruptions are untested. | Interruptions: Phase 3. |
 | O4 | Identity is a name match only. Anyone who knows a patient's name gets their appointment details. | Closed in Phase 2 (rows 17, 18). Name and date of birth are still weak proof; see ADR-0003. |
 | O5 | The behaviour tests call the real model, so they are skipped in CI, which has no key. Only the unit tests gate a change today. | Phase 3 wires them into CI. |
 | O6 | A turn that commits a change took 3.2 to 3.5 seconds in voice runs: the model asks for the commit, a second model judges the yes, the first model then words the reply. | Phase 3. |
 | O7 | The model sometimes proposes a change the caller did not ask for (row 25). The read-back stops it, at the cost of a turn. | Phase 3 measures how often. |
 | O8 | The post-call review's third check has only ever passed. It has not been shown a call where the agent misreports what it did, so its ability to catch one is unproven. | Phase 3: seeded bad transcripts. |
+| O10 | In the owner's call every reply took about 3.5 seconds, because every one of her turns led to a tool call: the model asks for the tool, the tool runs, the model is asked again for the words. | Phase 3. |
 | O9 | Stored transcripts contain the caller's date of birth as spoken. | Phase 7: filter personal data from stored text. |
 
 ## Assumed (to be proven in the phase named)

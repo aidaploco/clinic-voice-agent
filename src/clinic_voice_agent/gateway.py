@@ -13,7 +13,7 @@ code, not instructions:
 - Free times are handed out under ids made up for this call. Only a time that
   was offered in this call can be booked.
 - A change happens in two steps. It is proposed, which changes nothing and
-  produces a sentence to read back. It is committed only if the caller has
+  produces a question to read back. It is committed only if the caller has
   spoken since the read-back and a separate check judges their words a clear
   yes.
 - Every request, allowed or refused, is written to the audit log. A committed
@@ -187,13 +187,13 @@ class Gateway:
                 )
             slot_id = slot.id
             read_back = (
-                f"Move your {was} from {when} to {say_when(slot.start, self._now)} "
-                f"with {slot.practitioner}"
+                f"I'll move your {was} from {when} to {say_when(slot.start, self._now)} "
+                f"with {slot.practitioner}. Is that right?"
             )
         elif kind == "cancel":
-            read_back = f"Cancel your {was} {when}"
+            read_back = f"I'll cancel your {was} {when}. Is that right?"
         elif kind == "confirm":
-            read_back = f"Confirm that you are coming to your {was} {when}"
+            read_back = f"I'll put you down as coming to your {was} {when}. Is that right?"
         else:
             raise self._refuse("propose_change", "unknown_change", "There is no such change.")
         self._pending = Proposal(

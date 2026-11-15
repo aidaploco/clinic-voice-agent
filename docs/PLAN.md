@@ -39,7 +39,7 @@ A tool gateway between the model and the clinic: each call gets a capability lim
 
 Acceptance: a caller who fails the identity check can do nothing; a prompt-injection attempt cannot book an unlisted time; every committed change has a logged confirmation.
 
-Status: met (VERIFICATION rows 17 to 27; [ADR-0003](adr/0003-acting-safely.md)). The rules are code in the gateway and are tested without a model; conversations with the real model and scripted voice calls show them holding. Carried forward: a turn that commits a change takes over three seconds; the model sometimes proposes a change the caller did not ask for, which the read-back catches; the owner has still not spoken to it herself.
+Status: met (VERIFICATION rows 17 to 27; [ADR-0003](adr/0003-acting-safely.md)). The rules are code in the gateway and are tested without a model; conversations with the real model and scripted voice calls show them holding. Carried forward: a turn that commits a change takes over three seconds; the model sometimes proposes a change the caller did not ask for, which the read-back catches; replies after a tool call took about 3.5 seconds in the owner's own call.
 
 ### Phase 3: evals and latency
 
