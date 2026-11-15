@@ -25,11 +25,13 @@ Project skeleton, pinned agent framework, the four languages as data, CI with a 
 
 Acceptance: unit tests pass; a text conversation runs against the real model.
 
-### Phase 1: a voice, and tools
+### Phase 1: a voice, and tools (done; the owner has not yet spoken to it)
 
 The worker that LiveKit dispatches calls to. Speech to text, a language model and text to speech, in English. The conversation as an explicit flow (who is calling, what they want, do it, confirm it, close). Tools against a mock clinic: find slots, reschedule, cancel, confirm, take a message, end the call.
 
 Acceptance: a spoken conversation, in a browser or the terminal, in which a patient moves an appointment and the mock clinic's record changes. Tests drive the same conversation in text and assert on the tool calls.
+
+Status: met with a scripted caller speaking real audio through LiveKit Cloud (VERIFICATION rows 6 to 11). Terminal mode with a person at the microphone has not been tried. Found along the way and carried forward: replies take about 1.4 seconds on a simple turn and noticeably longer when a tool runs, which is the main target of Phase 3; and the rule "change nothing the caller did not ask for" is a prompt instruction until the gateway of Phase 2 enforces it.
 
 ### Phase 2: acting safely, and keeping records
 

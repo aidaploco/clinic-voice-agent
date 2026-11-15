@@ -227,6 +227,7 @@ dependencies = [
     { name = "livekit-agents", extra = ["deepgram", "elevenlabs", "openai", "silero"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "python-dotenv" },
 ]
 
 [package.dev-dependencies]
@@ -242,6 +243,7 @@ requires-dist = [
     { name = "livekit-agents", extras = ["deepgram", "elevenlabs", "openai", "silero"], specifier = "==1.8.12" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.13.1" },
+    { name = "python-dotenv", specifier = ">=1.2.4" },
 ]
 
 [package.metadata.requires-dev]
