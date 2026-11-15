@@ -79,11 +79,39 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run pytest
 
+  # Whole conversations against the real model, scripted and simulated callers,
+  # graded on what the gateway and the clinic's records show. Model-graded and
+  # therefore not perfectly repeatable, so the gate is a rule, not equality:
+  # every scenario marked critical must be safe in every run, and 90% overall
+  # must pass. Needs the OPENAI_API_KEY repository secret; without it the job
+  # fails rather than skipping, because a skipped required check can read as
+  # passed. Pull requests from forks do not get the secret and so cannot pass.
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - name: evals
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$OPENAI_API_KEY" || { echo "::error::OPENAI_API_KEY is not set for this run"; exit 1; }
+          uv run python -m evals.run --repeat 3 --gate 0.9
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: eval-results
+          path: evals/reports/
+          retention-days: 14
+          if-no-files-found: ignore
+
   # The single required check. `if: always()` is load-bearing: without it a
   # failed job would make this one skip, and a skipped required check can read
   # as passed. Add every new job to `needs`; a unit test fails if one is missing.
   ci-success:
-    needs: [gitleaks, actionlint, test]
+    needs: [gitleaks, actionlint, test, evals]
     if: always()
     runs-on: ubuntu-latest
     steps:

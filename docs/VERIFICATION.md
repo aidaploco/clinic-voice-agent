@@ -35,6 +35,7 @@ What has been proven by running it, and what is still believed from documentatio
 | 27 | The post-call review runs on real calls and reports per check | three checks recorded for each scripted voice call, all passing; unit tests show the two log checks failing on a change with no identity check, no proposal or no confirmation | 2026-11-14 |
 | 28 | The owner's own call, at a microphone: identity check, a confirmation read back, and the appointment confirmed. Two faults she found are fixed: the agent said her full name back to her, and "Yep." was not accepted as a yes | her call's record; then a conversation test that the name is not repeated, a conversation test replaying her lines with "Yep.", and 24 tests of the yes-check alone (15 ways of saying yes in four languages, 9 replies that are not one) | 2026-11-15 |
 | 29 | Twelve eval conversations, six scripted and six with a second model playing a caller (hurried, talkative, an impostor, one who changes their mind, one who insists on a time that does not exist, one asking for medical advice), run with one command and graded on the gateway's log and the clinic's records | `uv run python -m evals.run --repeat 4`: 47 of 48 passed. No run let an unverified caller in beyond the three attempts or changed an appointment without a logged yes | 2026-11-15 |
+| 30 | The eval gate blocks a change when any run of a safety-critical scenario lets someone in or changes an appointment wrongly, or when under 90% of runs pass; a review false alarm alone does not trip the first rule | unit tests on the rule; `uv run python -m evals.run --repeat 3 --gate 0.9` locally: 36 of 36, exit 0 | 2026-11-15 |
 
 ## Open observations
 
@@ -44,7 +45,7 @@ What has been proven by running it, and what is still believed from documentatio
 | O2 | In the first voice run the agent marked the appointment confirmed when the caller had only said goodbye. A prompt rule and a behaviour test now cover it, but a prompt is not enforcement. | Closed in Phase 2 (rows 21, 22). |
 | O3 | The owner's first spoken call failed: the text-to-speech account had run out of credit, so the agent's replies came back empty and she went silent mid-call; and the turn detector waited its full ceiling before every reply. Both are fixed (rows 12 to 15) and the failed call passes when replayed by the scripted caller, and the owner has since held a spoken call that worked (row 28). Interruptions are untested. | Interruptions: Phase 3. |
 | O4 | Identity is a name match only. Anyone who knows a patient's name gets their appointment details. | Closed in Phase 2 (rows 17, 18). Name and date of birth are still weak proof; see ADR-0003. |
-| O5 | The behaviour tests call the real model, so they are skipped in CI, which has no key. Only the unit tests gate a change today. | Phase 3 wires them into CI. |
+| O5 | The conversation tests in `tests/behaviour` call the real model, so the `test` job skips them. The eval job covers the same ground with more callers, so they stay a local check. | Accepted. |
 | O6 | A turn that commits a change took 3.2 to 3.5 seconds in voice runs: the model asks for the commit, a second model judges the yes, the first model then words the reply. | Phase 3. |
 | O7 | The model sometimes proposes a change the caller did not ask for (row 25). The read-back stops it, at the cost of a turn. | Phase 3 measures how often. |
 | O8 | The post-call review's third check has only ever passed. It has not been shown a call where the agent misreports what it did, so its ability to catch one is unproven. | Phase 3: seeded bad transcripts. |
@@ -52,7 +53,7 @@ What has been proven by running it, and what is still believed from documentatio
 | O9 | Stored transcripts contain the caller's date of birth as spoken. | Phase 7: filter personal data from stored text. |
 | O11 | The post-call review's third check gives false alarms: in 1 of 48 eval conversations it read the question "I'll move your appointment ... Is that right?" as a claim that the move was made. Earlier wording also flagged "I have passed on your message". | Phase 3: measure it on seeded good and bad transcripts before trusting it either way. |
 | O12 | After a failed identity check the agent asks for the name again and will not submit a date of birth on its own, so a caller who repeats only the date gets nowhere. Safe, but clumsy. | Phase 3. |
-| O13 | The eval suite is not in CI: it needs a model key as a repository secret. | Needs the owner: add `OPENAI_API_KEY` to the repository's secrets. |
+| O13 | The eval gate (`evals.run --gate 0.9`, a CI job) has run locally (36 of 36) but not yet on GitHub. | Proven by the first PR that carries it. |
 
 ## Assumed (to be proven in the phase named)
 

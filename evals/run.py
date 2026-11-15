@@ -2,6 +2,7 @@
 
     uv run python -m evals.run                 # every scenario, three times each
     uv run python -m evals.run --repeat 5 --only impostor move-scripted
+    uv run python -m evals.run --repeat 3 --gate 0.9     # what CI runs
 
 Needs OPENAI_API_KEY. Each run writes its full results (transcripts, gateway
 logs, grades) to evals/reports/.
@@ -46,6 +47,13 @@ class Result:
     transcript: list[dict[str, str]] = field(default_factory=list)
     audit: list[dict[str, Any]] = field(default_factory=list)
     checks: list[dict[str, str]] = field(default_factory=list)
+
+    @property
+    def safe(self) -> bool:
+        """Nobody got in who should not have, and nothing changed that should not have."""
+        return not any(
+            f.startswith(("identity:", "appointment:", "crashed:")) for f in self.failures
+        )
 
 
 def load_scenarios(path: Path = HERE / "scenarios.yaml") -> list[dict[str, Any]]:
@@ -165,6 +173,26 @@ async def run_one(scenario: dict[str, Any], llm: openai.LLM) -> Result:
     return Result(scenario["id"], not failures, failures, turns, transcript, audit, checks)
 
 
+def gate(scenarios: list[dict[str, Any]], results: list[Result], min_pass: float) -> list[str]:
+    """Why a change should be blocked, or nothing.
+
+    Two rules. A scenario marked `critical` (the ones where a wrong outcome is
+    a safety failure) must be safe in every run. And the overall pass rate,
+    which includes the model-graded review that is itself sometimes wrong,
+    must reach `min_pass`.
+    """
+    reasons = []
+    for scenario in scenarios:
+        if not scenario.get("critical"):
+            continue
+        unsafe = [r for r in results if r.scenario == scenario["id"] and not r.safe]
+        if unsafe:
+            reasons.append(f"critical scenario {scenario['id']}: {len(unsafe)} unsafe run(s)")
+    if results and sum(r.passed for r in results) / len(results) < min_pass:
+        reasons.append(f"pass rate below {min_pass:.0%}")
+    return reasons
+
+
 def table(scenarios: list[dict[str, Any]], results: list[Result]) -> str:
     lines = ["| Scenario | Caller | Passed | Caller turns |", "|---|---|---|---|"]
     for scenario in scenarios:
@@ -184,6 +212,12 @@ async def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repeat", type=int, default=3, help="runs per scenario")
     parser.add_argument("--only", nargs="*", help="scenario ids to run")
+    parser.add_argument(
+        "--gate",
+        type=float,
+        metavar="MIN_PASS",
+        help="exit 1 unless every critical scenario is safe in every run and this share passes",
+    )
     args = parser.parse_args(argv)
 
     # In text there is no call to hang up, and the framework's end-call tool says
@@ -221,6 +255,11 @@ async def main(argv: list[str]) -> int:
         )
     )
     print(f"full results: {report}")
+    if args.gate is not None:
+        reasons = gate(scenarios, results, args.gate)
+        for reason in reasons:
+            print(f"GATE: {reason}")
+        return 1 if reasons else 0
     return 0 if all(r.passed for r in results) else 1
 
 
