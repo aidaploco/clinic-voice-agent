@@ -48,13 +48,13 @@ What has been proven by running it, and what is still believed from documentatio
 | O4 | Identity is a name match only. Anyone who knows a patient's name gets their appointment details. | Closed in Phase 2 (rows 17, 18). Name and date of birth are still weak proof; see ADR-0003. |
 | O5 | The conversation tests in `tests/behaviour` call the real model, so the `test` job skips them. The eval job covers the same ground with more callers, so they stay a local check. | Accepted. |
 | O6 | A turn that commits a change took 3.2 to 3.5 seconds in voice runs: the model asks for the commit, a second model judges the yes, the first model then words the reply. | Phase 3. |
-| O7 | The model sometimes proposes a change the caller did not ask for (row 25). The read-back stops it, at the cost of a turn. | Phase 3 measures how often. |
+| O7 | The model sometimes proposes a change the caller did not ask for (row 25). The read-back stops it, at the cost of a turn, but not when the caller then answers yes to a question they did not expect. The first GitHub eval run caught this: at goodbye after "I'll keep my appointment" Emily proposed "put you down as coming" and the caller said yes. The prompt now says keeping the appointment is not a request to confirm and no change starts as the call ends; the scenario passed 8 of 8 afterwards. Still a prompt rule, so still measured. | Watch the eval pass rate for this scenario. |
 | O8 | The review's third check catches misreports (row 31) on twelve cases I wrote, which makes the figure optimistic: real misreports will be less tidy. Its two misses were a change never mentioned and the wrong word ("confirmed" for a cancellation). | Phase 3: add every real failure the evals or calls turn up to `evals/review_cases.yaml`. |
 | O10 | In the owner's call every reply took about 3.5 seconds, because every one of her turns led to a tool call: the model asks for the tool, the tool runs, the model is asked again for the words. | Phase 3. |
 | O9 | Stored transcripts contain the caller's date of birth as spoken. | Phase 7: filter personal data from stored text. |
 | O11 | Before the wording fix the review raised false alarms (a read-back question taken as a claim; a passed-on message taken as a change). After it, 0 of 48 truthful seeded runs and 1 of 48 eval conversations (the same read-back confusion, in a call where the caller backed out) were flagged. | Watch it on the eval runs; a flagged call is for a person to read, it changes nothing. |
 | O12 | After a failed identity check the agent asks for the name again and will not submit a date of birth on its own, so a caller who repeats only the date gets nowhere. Safe, but clumsy. | Phase 3. |
-| O13 | The eval gate (`evals.run --gate 0.9`, a CI job) has run locally (36 of 36) but not yet on GitHub. | Proven by the first PR that carries it. |
+| O13 | The eval gate ran on GitHub for the first time on PR #3 and failed correctly: 35 of 36, one unsafe run of a critical scenario (see O7). That shows the gate can block. Whether it passes on a clean run is shown by the next run. | Closed when a run on GitHub passes. |
 
 ## Assumed (to be proven in the phase named)
 
