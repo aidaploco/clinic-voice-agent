@@ -33,6 +33,7 @@ packages = ["src/clinic_voice_agent"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+pythonpath = ["."]  # so tests can import the eval runner
 
 [tool.ruff]
 line-length = 100

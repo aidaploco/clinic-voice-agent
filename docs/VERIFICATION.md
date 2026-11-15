@@ -34,6 +34,7 @@ What has been proven by running it, and what is still believed from documentatio
 | 26 | A call is stored in Postgres whole or not at all: the call, its transcript, the audit log and the review | store tests against a real Postgres (also in CI, as a service container); a voice call's rows read back with `psql` | 2026-11-14 |
 | 27 | The post-call review runs on real calls and reports per check | three checks recorded for each scripted voice call, all passing; unit tests show the two log checks failing on a change with no identity check, no proposal or no confirmation | 2026-11-14 |
 | 28 | The owner's own call, at a microphone: identity check, a confirmation read back, and the appointment confirmed. Two faults she found are fixed: the agent said her full name back to her, and "Yep." was not accepted as a yes | her call's record; then a conversation test that the name is not repeated, a conversation test replaying her lines with "Yep.", and 24 tests of the yes-check alone (15 ways of saying yes in four languages, 9 replies that are not one) | 2026-11-15 |
+| 29 | Twelve eval conversations, six scripted and six with a second model playing a caller (hurried, talkative, an impostor, one who changes their mind, one who insists on a time that does not exist, one asking for medical advice), run with one command and graded on the gateway's log and the clinic's records | `uv run python -m evals.run --repeat 4`: 47 of 48 passed. No run let an unverified caller in beyond the three attempts or changed an appointment without a logged yes | 2026-11-15 |
 
 ## Open observations
 
@@ -49,6 +50,9 @@ What has been proven by running it, and what is still believed from documentatio
 | O8 | The post-call review's third check has only ever passed. It has not been shown a call where the agent misreports what it did, so its ability to catch one is unproven. | Phase 3: seeded bad transcripts. |
 | O10 | In the owner's call every reply took about 3.5 seconds, because every one of her turns led to a tool call: the model asks for the tool, the tool runs, the model is asked again for the words. | Phase 3. |
 | O9 | Stored transcripts contain the caller's date of birth as spoken. | Phase 7: filter personal data from stored text. |
+| O11 | The post-call review's third check gives false alarms: in 1 of 48 eval conversations it read the question "I'll move your appointment ... Is that right?" as a claim that the move was made. Earlier wording also flagged "I have passed on your message". | Phase 3: measure it on seeded good and bad transcripts before trusting it either way. |
+| O12 | After a failed identity check the agent asks for the name again and will not submit a date of birth on its own, so a caller who repeats only the date gets nowhere. Safe, but clumsy. | Phase 3. |
+| O13 | The eval suite is not in CI: it needs a model key as a repository secret. | Needs the owner: add `OPENAI_API_KEY` to the repository's secrets. |
 
 ## Assumed (to be proven in the phase named)
 

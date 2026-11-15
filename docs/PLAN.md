@@ -47,6 +47,8 @@ Text-level conversations with scripted and simulated patients, graded on task co
 
 Acceptance: a results table in the README, reproducible with one command.
 
+Status: started. The text-level suite exists (`evals/`, VERIFICATION row 29): twelve conversations, scripted and simulated, graded on what the gateway and the clinic's records show. Still to do: run it in CI, measure the yes-check and the post-call review on seeded cases, the audio-level callers, the latency work (a reply after a tool call takes about 3.5 seconds), and the README table.
+
 ### Phase 4: a real phone
 
 A phone number on a SIP trunk, routed to the worker by a dispatch rule. Outbound calls with answering-machine detection. Handing a call over to a person. The allowlist, the per-call length limit and the daily cap.

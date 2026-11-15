@@ -57,6 +57,14 @@ uv run ruff check . && uv run ruff format --check .
 
 The unit tests cover the gateway's rules with no model involved: what an unverified caller can do (nothing), which times can be booked, and when a change may be committed. The behaviour tests hold complete conversations in text and assert on what the gateway allowed and refused: a patient moves an appointment and the yes is on record; a caller who fails the identity check gets nowhere, even with the right answer on the fourth try; an injected instruction cannot book a time that was not offered; a caller who hesitates at the read-back changes nothing.
 
+### Evals
+
+```bash
+uv run python -m evals.run             # twelve conversations, three times each; needs OPENAI_API_KEY
+```
+
+Scripted callers and callers played by a second model (an impostor, someone who changes their mind, someone who insists on a time that does not exist) talk to the receptionist in text. Each conversation is graded on what the gateway's log and the clinic's records show afterwards, not on her wording. The scenarios are in [evals/scenarios.yaml](evals/scenarios.yaml).
+
 ## Changing the repo
 
 Changes reach `main` through a pull request. CI is one workflow whose summary check, `ci-success`, fails if any job did.
