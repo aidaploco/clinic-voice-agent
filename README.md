@@ -17,23 +17,26 @@ A multilingual phone receptionist for a fictional physiotherapy clinic, built on
 
 ## Talk to it
 
-Requires [uv](https://docs.astral.sh/uv/) and three API keys in `.env` (copy `.env.example`): Deepgram, OpenAI and ElevenLabs.
+Requires [uv](https://docs.astral.sh/uv/) and two API keys in `.env` (copy `.env.example`): Deepgram and OpenAI.
 
 ```bash
 uv sync
-uv run python -m clinic_voice_agent.worker console
+uv run python scripts/preflight.py                    # is every service answering?
+uv run python -m clinic_voice_agent.worker console    # talk to her in this terminal
 ```
 
-That runs the receptionist in your terminal, using your computer's microphone and speakers. You are the patient **Alex Rivera**, with a shoulder physiotherapy appointment on the next working day. Give your name, then try moving the appointment, asking for a time she did not offer, or cancelling. Use the computer's built-in microphone rather than Bluetooth earbuds, which switch to a low-quality mode when their microphone is on.
+`console` uses your computer's microphone and speakers. You are the patient **Alex Rivera**, with a shoulder physiotherapy appointment on the next working day. Give your name, then try moving the appointment, asking for a time she did not offer, or cancelling. Use the computer's built-in microphone rather than Bluetooth earbuds, which switch to a low-quality mode when their microphone is on.
 
-Each call writes a record to `recordings/`: the transcript, what the tools did, the appointment afterwards, and how long each stage of each reply took.
+Each call writes a record to `recordings/`: the transcript, what the tools did, the appointment afterwards, why the call ended, any service errors, and how long each reply took.
+
+**If she goes quiet,** run the preflight. It makes one tiny request to each service and reports, in the provider's own words, one that has run out of credit or is down. Speech has more than one provider for this reason: when the first fails the next takes over, and if none can speak she ends the call rather than staying on the line in silence.
 
 ### Without a microphone
 
-A scripted caller speaks synthesised audio into a real room in your LiveKit project and prints the call's record. It needs `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` in `.env`.
+A scripted caller speaks into a real room in your LiveKit project and prints the call's record. It needs `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` in `.env`.
 
 ```bash
-uv run python -m clinic_voice_agent.worker dev                 # terminal 1
+uv run python -m clinic_voice_agent.worker start               # terminal 1
 uv run python scripts/audio_caller.py "My name is Alex Rivera." "I can't make it. What other times do you have?"
 ```
 

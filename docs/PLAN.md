@@ -31,7 +31,7 @@ The worker that LiveKit dispatches calls to. Speech to text, a language model an
 
 Acceptance: a spoken conversation, in a browser or the terminal, in which a patient moves an appointment and the mock clinic's record changes. Tests drive the same conversation in text and assert on the tool calls.
 
-Status: met with a scripted caller speaking real audio through LiveKit Cloud (VERIFICATION rows 6 to 11). Terminal mode with a person at the microphone has not been tried. Found along the way and carried forward: replies take about 1.4 seconds on a simple turn and noticeably longer when a tool runs, which is the main target of Phase 3; and the rule "change nothing the caller did not ask for" is a prompt instruction until the gateway of Phase 2 enforces it.
+Status: met with a scripted caller speaking real audio through LiveKit Cloud (VERIFICATION rows 6 to 16). The owner's first spoken call failed, which led to speech having a fallback provider, a call that cannot be served being ended rather than left silent, a preflight check, and a shorter wait before replying; a person has not yet repeated the call since. Found along the way and carried forward: replies take about 1.6 seconds, and up to 2.4 when a tool runs, which is the main target of Phase 3; and the rule "change nothing the caller did not ask for" is a prompt instruction until the gateway of Phase 2 enforces it.
 
 ### Phase 2: acting safely, and keeping records
 

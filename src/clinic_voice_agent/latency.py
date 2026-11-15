@@ -1,41 +1,37 @@
 """How long the caller waits, and where the time goes.
 
-The framework reports timings as it works. This collects the ones a caller
-feels, per turn:
+The framework attaches timings to each message in the conversation. This
+gathers the ones a caller feels:
 
-- `end_of_turn`: from the caller going quiet to the agent deciding they have finished
+- `reply`: from the caller finishing to the agent's voice starting. The number that matters.
+- `end_of_turn`: how long she waited before deciding the caller had finished
 - `llm_first_token`: from asking the model to its first word
 - `tts_first_audio`: from having text to having sound
-
-Their sum is roughly the silence before each reply.
 """
 
 from statistics import median
 from typing import Any
 
+# name in the record -> (which speaker's message carries it, the framework's field)
 STAGES = {
-    "EOUMetrics": ("end_of_turn", "end_of_utterance_delay"),
-    "LLMMetrics": ("llm_first_token", "ttft"),
-    "TTSMetrics": ("tts_first_audio", "ttfb"),
+    "reply": ("assistant", "e2e_latency"),
+    "end_of_turn": ("user", "end_of_turn_delay"),
+    "llm_first_token": ("assistant", "llm_node_ttft"),
+    "tts_first_audio": ("assistant", "tts_node_ttfb"),
 }
 
 
-class LatencyLog:
-    def __init__(self) -> None:
-        self.seconds: dict[str, list[float]] = {}
-
-    def add(self, metric: Any) -> None:
-        """Record one metric event from the framework; anything else is ignored."""
-        stage = STAGES.get(type(metric).__name__)
-        if stage is None:
-            return
-        name, field = stage
-        value = getattr(metric, field, None)
-        if isinstance(value, int | float) and value > 0:
-            self.seconds.setdefault(name, []).append(round(float(value), 3))
-
-    def summary(self) -> dict[str, dict[str, float]]:
-        return {
-            name: {"median": round(median(values), 3), "max": max(values), "turns": len(values)}
-            for name, values in self.seconds.items()
-        }
+def latency_of(history: Any) -> dict[str, dict[str, float]]:
+    """Median and worst time for each stage, over the messages of one call."""
+    seconds: dict[str, list[float]] = {}
+    for item in history.items:
+        role = getattr(item, "role", None)
+        metrics = getattr(item, "metrics", None) or {}
+        for name, (speaker, field) in STAGES.items():
+            value = metrics.get(field) if role == speaker else None
+            if isinstance(value, int | float) and value > 0:
+                seconds.setdefault(name, []).append(round(float(value), 3))
+    return {
+        name: {"median": round(median(values), 3), "max": max(values), "turns": len(values)}
+        for name, values in seconds.items()
+    }

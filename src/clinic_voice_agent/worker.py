@@ -5,20 +5,21 @@ name, `handle_call` runs for it: one call, one fresh mock clinic, one
 conversation flow.
 
     uv run python -m clinic_voice_agent.worker console   # talk to it in this terminal
-    uv run python -m clinic_voice_agent.worker dev       # take calls from your LiveKit project
+    uv run python -m clinic_voice_agent.worker start     # take calls from your LiveKit project
 """
 
 import logging
 from datetime import datetime
+from typing import Any
 
 from dotenv import load_dotenv
 from livekit.agents import AgentServer, AgentSession, JobContext, JobProcess, cli
-from livekit.plugins import deepgram, elevenlabs, openai, silero
+from livekit.plugins import silero
 
-from clinic_voice_agent import records
+from clinic_voice_agent import records, voice
 from clinic_voice_agent.clinic import demo_clinic
 from clinic_voice_agent.flow import CallState, IdentifyCaller
-from clinic_voice_agent.latency import LatencyLog
+from clinic_voice_agent.latency import latency_of
 from clinic_voice_agent.settings import get_settings
 
 # LiveKit's own connection settings (LIVEKIT_URL, LIVEKIT_API_KEY,
@@ -29,6 +30,13 @@ logger = logging.getLogger("clinic_voice_agent.worker")
 
 WORKER_NAME = "clinic-receptionist"
 
+# The framework's reasons for a session closing, in the words of a call record.
+CLOSE_REASONS = {
+    "user_initiated": "agent_ended_call",  # our own end-call tool closed it
+    "participant_disconnected": "caller_hung_up",
+    "error": "service_failed",
+}
+
 server = AgentServer()
 
 
@@ -38,6 +46,16 @@ def load_models(proc: JobProcess) -> None:
 
 
 server.setup_fnc = load_models
+
+
+def describe_error(event: Any) -> dict[str, Any]:
+    """An error event from the session, reduced to what a person debugging needs."""
+    error = getattr(event, "error", None)
+    return {
+        "service": type(getattr(event, "source", None)).__name__,
+        "error": str(getattr(error, "error", error))[:300],
+        "recoverable": bool(getattr(error, "recoverable", True)),
+    }
 
 
 @server.rtc_session(agent_name=WORKER_NAME)
@@ -51,26 +69,46 @@ async def handle_call(ctx: JobContext) -> None:
     session = AgentSession[CallState](
         userdata=state,
         vad=ctx.proc.userdata["vad"],
-        stt=deepgram.STT(
-            model=settings.stt_model,
-            language="en-US",
-            api_key=settings.deepgram_api_key.get_secret_value(),
-        ),
-        llm=openai.LLM(
-            model=settings.llm_model, api_key=settings.openai_api_key.get_secret_value()
-        ),
-        tts=elevenlabs.TTS(
-            voice_id=settings.tts_voice_id,
-            api_key=settings.elevenlabs_api_key.get_secret_value(),
-        ),
+        stt=voice.build_stt(settings),
+        llm=voice.build_llm(settings),
+        tts=voice.build_tts(settings),
+        turn_handling=voice.TURN_HANDLING,
     )
 
-    latency = LatencyLog()
-    session.on("metrics_collected", lambda event: latency.add(event.metrics))
+    errors: list[dict[str, Any]] = []
+    ending: dict[str, str] = {}
+
+    def on_error(event: Any) -> None:
+        problem = describe_error(event)
+        errors.append(problem)
+        if problem["recoverable"]:
+            return
+        # A service she cannot do without has failed for good. An agent that
+        # cannot hear, think or speak must not sit on the line in silence:
+        # end the call and say why in the record.
+        logger.error("ending the call: %s failed: %s", problem["service"], problem["error"])
+        ending.setdefault("why", f"service_failed:{problem['service']}")
+        # Closing the room hangs up on the caller, which is the point: a phone
+        # line must not stay open to an agent that cannot serve it.
+        ctx.delete_room()
+        ctx.shutdown(reason=ending["why"])
+
+    def on_close(event: Any) -> None:
+        reason = str(getattr(event, "reason", "closed")).split(".")[-1].lower()
+        ending.setdefault("why", CLOSE_REASONS.get(reason, reason))
+
+    session.on("error", on_error)
+    session.on("close", on_close)
 
     async def write_record() -> None:
         record = records.call_record(
-            ctx.room.name, started, state, session.history, latency.summary()
+            ctx.room.name,
+            started,
+            state,
+            session.history,
+            latency_of(session.history),
+            ending.get("why", "worker_shutdown"),
+            errors,
         )
         path = records.save(record, settings.recordings_dir)
         logger.info("call record written to %s", path)

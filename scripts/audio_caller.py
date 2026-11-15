@@ -4,19 +4,22 @@ It proves the whole voice path with nobody at a microphone: the lines are
 synthesised, published into a room as if they were a phone line, and the
 worker is dispatched to that room. Afterwards it prints the call's record.
 
-    uv run python -m clinic_voice_agent.worker dev          # terminal 1
+    uv run python -m clinic_voice_agent.worker start        # terminal 1
     uv run python scripts/audio_caller.py "Alex Rivera." "I need to move my appointment."
 
-Needs LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET and ELEVENLABS_API_KEY.
-Costs a few cents per run.
+Needs LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET. On a Mac the caller's
+voice is the built-in one, so a run costs only what the agent's side costs.
 """
 
 import asyncio
 import json
 import os
 import secrets
+import shutil
 import sys
+import tempfile
 import time
+import wave
 from pathlib import Path
 
 import aiohttp
@@ -26,20 +29,37 @@ from livekit import api, rtc
 from clinic_voice_agent.settings import get_settings
 from clinic_voice_agent.worker import WORKER_NAME
 
-SAMPLE_RATE = 16000
+SAMPLE_RATE = 24000
 FRAME = SAMPLE_RATE // 50  # 20 ms of samples
 SILENCE = b"\x00\x00" * FRAME
-CALLER_VOICE = "EXAVITQu4vr4xnSDxMaL"
 
 
 async def synthesise(http: aiohttp.ClientSession, text: str) -> bytes:
-    key = get_settings().elevenlabs_api_key.get_secret_value()
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{CALLER_VOICE}"
+    """The line as 24 kHz mono speech.
+
+    On a Mac the built-in voice is used: it is local and costs nothing, so
+    test runs do not spend a speech provider's credit. Elsewhere, OpenAI.
+    """
+    if sys.platform == "darwin" and shutil.which("say"):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "line.wav"
+            process = await asyncio.create_subprocess_exec(
+                "say", "-o", str(path), "--file-format=WAVE",
+                f"--data-format=LEI16@{SAMPLE_RATE}", text,
+            )  # fmt: skip
+            await process.wait()
+            with wave.open(str(path)) as audio:
+                return audio.readframes(audio.getnframes())
+    key = get_settings().openai_api_key.get_secret_value()
     async with http.post(
-        url,
-        params={"output_format": f"pcm_{SAMPLE_RATE}"},
-        headers={"xi-api-key": key},
-        json={"text": text, "model_id": "eleven_flash_v2_5"},
+        "https://api.openai.com/v1/audio/speech",
+        headers={"Authorization": f"Bearer {key}"},
+        json={
+            "model": "gpt-4o-mini-tts",
+            "voice": "alloy",
+            "input": text,
+            "response_format": "pcm",
+        },
     ) as response:
         response.raise_for_status()
         return await response.read()
@@ -134,8 +154,14 @@ async def main(lines: list[str]) -> int:
         if room.isconnected():
             await room.disconnect()
 
-    await asyncio.sleep(4)  # the worker writes the record when the call closes
-    records = sorted(get_settings().recordings_dir.glob(f"*{room_name}.json"))
+    # The worker writes the record once the call has fully closed, which can
+    # take a while after the caller leaves.
+    records: list[Path] = []
+    for _ in range(90):
+        records = sorted(get_settings().recordings_dir.glob(f"*{room_name}.json"))
+        if records:
+            break
+        await asyncio.sleep(0.5)
     if not records:
         print("no call record was written", file=sys.stderr)
         return 1
@@ -144,10 +170,9 @@ async def main(lines: list[str]) -> int:
         print(f"{line['speaker']:>6}: {line['text']}")
     print("actions:", [a["action"] for a in record["actions"]])
     print("appointment after:", record["appointment_after"])
-    print(
-        "latency (s):", {k: (v["median"], v["max"]) for k, v in record["latency_seconds"].items()}
-    )
-    print("seconds from end of caller's line to agent speaking:", [round(w, 2) for w in waits])
+    print("ended because:", record["ended_because"], "| errors:", record["errors"])
+    for stage, numbers in record["latency_seconds"].items():
+        print(f"  {stage:<16} median {numbers['median']:.2f}s  worst {numbers['max']:.2f}s")
     return 0
 
 

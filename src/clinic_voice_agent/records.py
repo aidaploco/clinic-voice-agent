@@ -25,6 +25,8 @@ def call_record(
     state: CallState,
     history,
     latency: dict[str, dict[str, float]] | None = None,
+    ended_because: str = "",
+    errors: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     patient = state.patient
     appointment = state.clinic.upcoming_appointment(patient.id) if patient else None
@@ -32,6 +34,8 @@ def call_record(
         "room": room,
         "started": started.isoformat(timespec="seconds"),
         "ended": datetime.now().isoformat(timespec="seconds"),
+        "ended_because": ended_because,
+        "errors": errors or [],
         "patient": patient.full_name if patient else None,
         "actions": state.actions,
         "appointment_after": None
