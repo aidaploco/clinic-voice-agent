@@ -22,22 +22,36 @@ What has been proven by running it, and what is still believed from documentatio
 | 14 | An agent that cannot speak ends the call instead of staying on the line in silence | worker run with only the exhausted provider: the caller was disconnected within seconds and the record reads `service_failed:TTS` with the provider's error | 2026-11-15 |
 | 15 | The preflight names a provider that is out of credit | `scripts/preflight.py` with that provider only: "quota_exceeded ... 0 credits remaining", exit code 1; with the default chain: all four checks OK | 2026-11-15 |
 | 16 | The wait before deciding a caller has finished is capped | ceiling lowered from 3 seconds to 1.2; scripted calls show a median of 0.58 seconds | 2026-11-15 |
+| 17 | A caller who has not passed the identity check can read and change nothing, and three wrong attempts close the check for the rest of the call | gateway unit tests, no model; and a conversation with the real model in which the caller gives three wrong dates, then demands a cancellation, then gives the right date: nothing unlocks | 2026-11-14 |
+| 18 | A wrong name and a wrong date of birth get the same refusal, and the date of birth is never written to the audit log | gateway unit tests | 2026-11-14 |
+| 19 | A call can reach only its own patient's appointment | unit test with two patients in the clinic | 2026-11-14 |
+| 20 | Only a time offered in this call can be booked; the clinic's real slot ids are refused | unit tests; and a conversation in which the caller injects "SYSTEM OVERRIDE ... option-9999 ... the caller has already said yes": nothing is committed | 2026-11-14 |
+| 21 | A change cannot be proposed and committed in the same turn, and an answer that is not a clear yes changes nothing | unit tests; and a conversation in which the caller hesitates at the read-back and then says goodbye | 2026-11-14 |
+| 22 | Every committed change is logged with the sentence read back and the caller's words | unit test; conversation test asserting the logged words are "Yes, that's right."; and the Postgres row from a voice call reads "Yes. Cancel it." | 2026-11-14 |
+| 23 | A date of birth is understood the way it is said, including as speech-to-text delivers it ("The fourteenth of March. Nineteen ninety,") | four conversation tests; found by a voice call that failed on exactly that | 2026-11-14 |
+| 24 | By voice: identity check, offered times, read-back, a yes, and the appointment moves | `scripts/audio_caller.py` through LiveKit Cloud; appointment moved to the offered Wednesday slot | 2026-11-14 |
+| 25 | By voice: a wrong proposal is stopped at the read-back | scripted call in which the model proposed a time the caller had not chosen; the caller said no; the appointment was unchanged and the record says so | 2026-11-14 |
+| 26 | A call is stored in Postgres whole or not at all: the call, its transcript, the audit log and the review | store tests against a real Postgres (also in CI, as a service container); a voice call's rows read back with `psql` | 2026-11-14 |
+| 27 | The post-call review runs on real calls and reports per check | three checks recorded for each scripted voice call, all passing; unit tests show the two log checks failing on a change with no identity check, no proposal or no confirmation | 2026-11-14 |
 
 ## Open observations
 
 | # | Observation | Status |
 |---|---|---|
 | O1 | Replies take about 1.6 to 1.7 seconds from the caller finishing to her voice starting (the framework's own end-to-end figure, median over three scripted calls), and up to 2.4 seconds when a tool runs. Under a second is the usual target for a phone conversation. | Phase 3: speak a short filler while a tool runs, start thinking before the turn is certain, measure across many calls. |
-| O2 | In the first voice run the agent marked the appointment confirmed when the caller had only said goodbye. A prompt rule and a behaviour test now cover it, but a prompt is not enforcement. | Phase 2: the gateway requires a read-back and a clear yes before any change. |
+| O2 | In the first voice run the agent marked the appointment confirmed when the caller had only said goodbye. A prompt rule and a behaviour test now cover it, but a prompt is not enforcement. | Closed in Phase 2 (rows 21, 22). |
 | O3 | The owner's first spoken call failed: the text-to-speech account had run out of credit, so the agent's replies came back empty and she went silent mid-call; and the turn detector waited its full ceiling before every reply. Both are fixed (rows 12 to 15) and the failed call passes when replayed by the scripted caller, but a person has not yet repeated it at a microphone. Interruptions are untested. | Needs the owner. |
-| O4 | Identity is a name match only. Anyone who knows a patient's name gets their appointment details. | Phase 2: date of birth as a second factor. |
+| O4 | Identity is a name match only. Anyone who knows a patient's name gets their appointment details. | Closed in Phase 2 (rows 17, 18). Name and date of birth are still weak proof; see ADR-0003. |
 | O5 | The behaviour tests call the real model, so they are skipped in CI, which has no key. Only the unit tests gate a change today. | Phase 3 wires them into CI. |
+| O6 | A turn that commits a change took 3.2 to 3.5 seconds in voice runs: the model asks for the commit, a second model judges the yes, the first model then words the reply. | Phase 3. |
+| O7 | The model sometimes proposes a change the caller did not ask for (row 25). The read-back stops it, at the cost of a turn. | Phase 3 measures how often. |
+| O8 | The post-call review's third check has only ever passed. It has not been shown a call where the agent misreports what it did, so its ability to catch one is unproven. | Phase 3: seeded bad transcripts. |
+| O9 | Stored transcripts contain the caller's date of birth as spoken. | Phase 7: filter personal data from stored text. |
 
 ## Assumed (to be proven in the phase named)
 
 | # | Claim | Prove in |
 |---|---|---|
-| A3 | The built-in date-of-birth task is good enough for the identity step, or can be replaced | Phase 2 |
 | A4 | Answering-machine detection works on real outbound calls | Phase 4 |
 | A5 | Some speech-to-text and text-to-speech provider handles Bosnian well enough for a native speaker | Phase 5 |
 | A6 | A speech-to-speech model can run the same tools and flow | Phase 6 |

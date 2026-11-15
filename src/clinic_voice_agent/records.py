@@ -1,11 +1,12 @@
-"""The record of one call: what was said, and what the tools did."""
+"""The record of one call: what was said, what the gateway allowed and refused, and the review."""
 
 import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from clinic_voice_agent.flow import CallState
+from clinic_voice_agent.clinic import Clinic
+from clinic_voice_agent.gateway import Gateway
 
 
 def transcript_of(history) -> list[dict[str, str]]:
@@ -22,22 +23,25 @@ def transcript_of(history) -> list[dict[str, str]]:
 def call_record(
     room: str,
     started: datetime,
-    state: CallState,
-    history,
+    gateway: Gateway,
+    clinic: Clinic,
+    transcript: list[dict[str, str]],
     latency: dict[str, dict[str, float]] | None = None,
     ended_because: str = "",
     errors: list[dict[str, Any]] | None = None,
+    checks: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
-    patient = state.patient
-    appointment = state.clinic.upcoming_appointment(patient.id) if patient else None
+    patient = gateway.patient
+    appointment = clinic.last_known_appointment(patient.id) if patient else None
     return {
         "room": room,
         "started": started.isoformat(timespec="seconds"),
         "ended": datetime.now().isoformat(timespec="seconds"),
         "ended_because": ended_because,
         "errors": errors or [],
-        "patient": patient.full_name if patient else None,
-        "actions": state.actions,
+        "patient_id": patient.id if patient else None,
+        "audit": [event.as_dict() for event in gateway.audit],
+        "checks": checks or [],
         "appointment_after": None
         if appointment is None
         else {
@@ -45,9 +49,9 @@ def call_record(
             "practitioner": appointment.practitioner,
             "status": appointment.status,
         },
-        "messages": [m.text for m in state.clinic.messages],
+        "messages": [m.text for m in clinic.messages],
         "latency_seconds": latency or {},
-        "transcript": transcript_of(history),
+        "transcript": transcript,
     }
 
 

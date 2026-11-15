@@ -8,6 +8,7 @@ conversation flow.
     uv run python -m clinic_voice_agent.worker start     # take calls from your LiveKit project
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any
@@ -16,9 +17,11 @@ from dotenv import load_dotenv
 from livekit.agents import AgentServer, AgentSession, JobContext, JobProcess, cli
 from livekit.plugins import silero
 
-from clinic_voice_agent import records, voice
+from clinic_voice_agent import records, review, store, voice
 from clinic_voice_agent.clinic import demo_clinic
+from clinic_voice_agent.consent import ModelConsent
 from clinic_voice_agent.flow import CallState, IdentifyCaller
+from clinic_voice_agent.gateway import Gateway
 from clinic_voice_agent.latency import latency_of
 from clinic_voice_agent.settings import get_settings
 
@@ -29,6 +32,9 @@ load_dotenv()
 logger = logging.getLogger("clinic_voice_agent.worker")
 
 WORKER_NAME = "clinic-receptionist"
+
+# How long the post-call review may take before the record is written without it.
+REVIEW_SECONDS = 20
 
 # The framework's reasons for a session closing, in the words of a call record.
 CLOSE_REASONS = {
@@ -43,6 +49,12 @@ server = AgentServer()
 def load_models(proc: JobProcess) -> None:
     """Runs once per worker process, before any call: load what every call needs."""
     proc.userdata["vad"] = silero.VAD.load()
+    if url := get_settings().database_url:
+        try:
+            store.migrate(url.get_secret_value())
+        except Exception:
+            # Calls are still taken and still recorded to a file.
+            logger.exception("the database is not reachable; call records go to files only")
 
 
 server.setup_fnc = load_models
@@ -65,12 +77,14 @@ async def handle_call(ctx: JobContext) -> None:
         raise RuntimeError(f"cannot take calls: {', '.join(missing)} not set (see .env.example)")
 
     started = datetime.now()
-    state = CallState(clinic=demo_clinic(started), now=started)
+    clinic = demo_clinic(started)
+    llm = voice.build_llm(settings)
+    gateway = Gateway(clinic, started, consent=ModelConsent(llm))
     session = AgentSession[CallState](
-        userdata=state,
+        userdata=CallState(gateway=gateway, now=started),
         vad=ctx.proc.userdata["vad"],
         stt=voice.build_stt(settings),
-        llm=voice.build_llm(settings),
+        llm=llm,
         tts=voice.build_tts(settings),
         turn_handling=voice.TURN_HANDLING,
     )
@@ -101,17 +115,37 @@ async def handle_call(ctx: JobContext) -> None:
     session.on("close", on_close)
 
     async def write_record() -> None:
+        transcript = records.transcript_of(session.history)
+        audit = [event.as_dict() for event in gateway.audit]
+        try:
+            async with asyncio.timeout(REVIEW_SECONDS):
+                checks = await review.review_call(transcript, audit, llm)
+        except TimeoutError:
+            checks = await review.review_call(transcript, audit, None)
+        for check in checks:
+            if check["verdict"] == "fail":
+                logger.warning("review failed: %s: %s", check["name"], check["detail"])
         record = records.call_record(
             ctx.room.name,
             started,
-            state,
-            session.history,
+            gateway,
+            clinic,
+            transcript,
             latency_of(session.history),
             ending.get("why", "worker_shutdown"),
             errors,
+            checks,
         )
+        # The file first: it needs nothing but a disk, so a database that is
+        # down cannot lose the record of a call.
         path = records.save(record, settings.recordings_dir)
         logger.info("call record written to %s", path)
+        if settings.database_url is not None:
+            try:
+                call_id = await store.save_call(settings.database_url.get_secret_value(), record)
+                logger.info("call stored as %s", call_id)
+            except Exception:
+                logger.exception("the call was not stored in the database; the file has it")
 
     ctx.add_shutdown_callback(write_record)
 

@@ -29,7 +29,13 @@ class Settings(BaseSettings):
     # Where each call's record (transcript and what the tools did) is written.
     recordings_dir: Path = Path("recordings")
 
-    @field_validator("deepgram_api_key", "openai_api_key", "elevenlabs_api_key", mode="before")
+    # Postgres for call records. Optional: without it a call's record is the
+    # JSON file only.
+    database_url: SecretStr | None = None
+
+    @field_validator(
+        "deepgram_api_key", "openai_api_key", "elevenlabs_api_key", "database_url", mode="before"
+    )
     @classmethod
     def _blank_means_unset(cls, value):
         # `KEY=` in a .env file is "not set", never "the empty key".

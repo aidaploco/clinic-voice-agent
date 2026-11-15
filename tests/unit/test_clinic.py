@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 
@@ -38,7 +38,12 @@ def test_a_partial_or_different_name_matches_nobody(spoken):
 
 
 def test_two_patients_with_the_same_name_are_never_guessed_between():
-    clinic = Clinic(patients={"a": Patient("a", "Alex Rivera"), "b": Patient("b", "Alex Rivera")})
+    clinic = Clinic(
+        patients={
+            "a": Patient("a", "Alex Rivera", date(1980, 1, 1)),
+            "b": Patient("b", "Alex Rivera", date(1980, 1, 1)),
+        }
+    )
     assert clinic.find_patient("Alex Rivera") is None
 
 

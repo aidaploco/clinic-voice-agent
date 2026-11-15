@@ -5,7 +5,8 @@ synthesised, published into a room as if they were a phone line, and the
 worker is dispatched to that room. Afterwards it prints the call's record.
 
     uv run python -m clinic_voice_agent.worker start        # terminal 1
-    uv run python scripts/audio_caller.py "Alex Rivera." "I need to move my appointment."
+    uv run python scripts/audio_caller.py "Alex Rivera." "March 14th, 1990." \\
+        "I need to move my appointment."
 
 Needs LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET. On a Mac the caller's
 voice is the built-in one, so a run costs only what the agent's side costs.
@@ -168,7 +169,10 @@ async def main(lines: list[str]) -> int:
     record = json.loads(Path(records[-1]).read_text())
     for line in record["transcript"]:
         print(f"{line['speaker']:>6}: {line['text']}")
-    print("actions:", [a["action"] for a in record["actions"]])
+    for event in record["audit"]:
+        print(f"  gateway: {event['operation']:<16} {event['outcome']:<8} {event['reason']}")
+    for check in record["checks"]:
+        print(f"  review:  {check['name']:<24} {check['verdict']:<8} {check['detail']}")
     print("appointment after:", record["appointment_after"])
     print("ended because:", record["ended_because"], "| errors:", record["errors"])
     for stage, numbers in record["latency_seconds"].items():

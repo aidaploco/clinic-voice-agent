@@ -1,14 +1,14 @@
 """The clinic's records. A mock: every patient, appointment and slot is invented.
 
 This stands in for a real booking system. The agent never touches it directly;
-it goes through the tools in `clinic_voice_agent.flow`, which decide what a
-caller is allowed to do.
+it goes through `clinic_voice_agent.gateway`, which decides what one call is
+allowed to do.
 """
 
 import secrets
 import unicodedata
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 
 class ClinicError(Exception):
@@ -19,6 +19,7 @@ class ClinicError(Exception):
 class Patient:
     id: str
     full_name: str
+    date_of_birth: date
 
     @property
     def first_name(self) -> str:
@@ -81,6 +82,11 @@ class Clinic:
         ]
         return min(mine, key=lambda a: a.start, default=None)
 
+    def last_known_appointment(self, patient_id: str) -> Appointment | None:
+        """The patient's appointment as it now stands, cancelled or not. For records."""
+        mine = [a for a in self.appointments.values() if a.patient_id == patient_id]
+        return min(mine, key=lambda a: a.start, default=None)
+
     def free_slots(self, limit: int = 3) -> list[Slot]:
         return sorted(self.slots.values(), key=lambda s: s.start)[:limit]
 
@@ -126,7 +132,7 @@ def _working_day_after(day: datetime) -> datetime:
 
 def demo_clinic(now: datetime) -> Clinic:
     """A clinic with one patient, one appointment on the next working day, and three free slots."""
-    patient = Patient("patient-alex", "Alex Rivera")
+    patient = Patient("patient-alex", "Alex Rivera", date(1990, 3, 14))
     day = _working_day_after(now)
     appointment = Appointment(
         "appt-alex",

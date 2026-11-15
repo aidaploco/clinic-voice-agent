@@ -8,6 +8,7 @@ dependencies = [
     # Pinned exactly. The agent framework moves fast, and an upgrade should be
     # a decision with a test run behind it, not something a fresh install does.
     "livekit-agents[deepgram,elevenlabs,openai,silero]==1.8.12",
+    "psycopg[binary]>=3.2",
     "pydantic>=2.10",
     "pydantic-settings>=2.13.1",
     "python-dotenv>=1.2.4",

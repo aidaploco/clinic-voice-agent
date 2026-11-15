@@ -33,11 +33,13 @@ Acceptance: a spoken conversation, in a browser or the terminal, in which a pati
 
 Status: met with a scripted caller speaking real audio through LiveKit Cloud (VERIFICATION rows 6 to 16). The owner's first spoken call failed, which led to speech having a fallback provider, a call that cannot be served being ended rather than left silent, a preflight check, and a shorter wait before replying; a person has not yet repeated the call since. Found along the way and carried forward: replies take about 1.6 seconds, and up to 2.4 when a tool runs, which is the main target of Phase 3; and the rule "change nothing the caller did not ask for" is a prompt instruction until the gateway of Phase 2 enforces it.
 
-### Phase 2: acting safely, and keeping records
+### Phase 2: acting safely, and keeping records (done)
 
 A tool gateway between the model and the clinic: each call gets a capability limited to one patient; free slots are handed out as server-issued ids, so a time that was not offered cannot be booked; a change is held, read back, and committed only after a clear yes; every action is logged. Identity is checked with a second factor (date of birth) before any tool unlocks. Calls, transcripts and actions are stored in Postgres. After each call a check compares what was done with what was said.
 
 Acceptance: a caller who fails the identity check can do nothing; a prompt-injection attempt cannot book an unlisted time; every committed change has a logged confirmation.
+
+Status: met (VERIFICATION rows 17 to 27; [ADR-0003](adr/0003-acting-safely.md)). The rules are code in the gateway and are tested without a model; conversations with the real model and scripted voice calls show them holding. Carried forward: a turn that commits a change takes over three seconds; the model sometimes proposes a change the caller did not ask for, which the read-back catches; the owner has still not spoken to it herself.
 
 ### Phase 3: evals and latency
 

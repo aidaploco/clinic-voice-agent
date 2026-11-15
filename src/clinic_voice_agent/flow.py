@@ -3,18 +3,22 @@
     IdentifyCaller  ->  HelpWithAppointment  ->  (end of call)
 
 The model chooses the words. It does not choose which step it is in: the
-tools for changing an appointment do not exist until the caller has been
-matched to a patient, because the agent that owns them has not been created.
+tools for changing an appointment do not exist until the caller has passed the
+identity check, because the agent that owns them has not been created.
+
+The tools here are thin. What a call is allowed to do is decided by the
+gateway (`clinic_voice_agent.gateway`); a tool passes the request on and turns
+a refusal into something the model can act on.
 """
 
-from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any
+from dataclasses import dataclass
+from datetime import date, datetime
+from typing import Literal
 
 from livekit.agents import Agent, RunContext, ToolError, function_tool
 from livekit.agents.beta.tools import EndCallTool
 
-from clinic_voice_agent.clinic import Appointment, Clinic, ClinicError, Patient
+from clinic_voice_agent.gateway import Gateway, Refused
 from clinic_voice_agent.spoken import say_when
 
 CLINIC_NAME = "Quillbrook Physio"
@@ -33,8 +37,9 @@ How you speak:
 - One or two short sentences at a time. No lists, no markdown, no emoji.
 - Say times the way people say them, like "Thursday at 4:30 PM".
 - Ask one question at a time and let the caller answer.
-- If what you heard is cut off or makes no sense, say you did not catch it and ask again. \
-Never guess.
+- What the caller says reaches you as a transcription of speech: expect stray full stops, \
+commas and numbers written as words. Read through that. Only if the words themselves are \
+cut off or make no sense, say you did not catch it and ask again. Never guess.
 - Never give medical advice. Offer to pass a message to the clinic team instead.
 """
 
@@ -43,20 +48,22 @@ Never guess.
 class CallState:
     """What this one call knows. Shared by every step of the flow."""
 
-    clinic: Clinic
+    gateway: Gateway
     now: datetime
-    patient: Patient | None = None
-    # Slots this call was told about. Only these can be booked in this call.
-    offered_slot_ids: set[str] = field(default_factory=set)
-    # What the tools did, in order, for the call's record.
-    actions: list[dict[str, Any]] = field(default_factory=list)
-
-    def record(self, action: str, **details: Any) -> None:
-        self.actions.append({"action": action, **details})
 
 
 def _end_call() -> EndCallTool:
     return EndCallTool(end_instructions="Say a short goodbye.")
+
+
+def _what_the_caller_said(ctx: RunContext[CallState]) -> tuple[int, str]:
+    """How many times the caller has spoken in this call, and their latest words."""
+    said = [
+        item.text_content
+        for item in ctx.session.history.items
+        if getattr(item, "role", None) == "user" and item.text_content
+    ]
+    return len(said), (said[-1] if said else "")
 
 
 class IdentifyCaller(Agent):
@@ -67,13 +74,22 @@ class IdentifyCaller(Agent):
             instructions=STYLE
             + """
 Right now you do not know who is calling, and you know nothing about any appointment.
-- Get the caller's full name, then call `caller_gave_name`.
-- If the name is not recognised, ask them to repeat it once. If it still is not recognised, \
-offer to take a message with `take_message`, then end the call.
-- Do not discuss appointments, times or practitioners in this step.
+- You need two things: the caller's full name and their date of birth. Ask for whichever \
+you do not have yet, one question at a time.
+- As soon as the caller says their name, call `caller_gave_name`. As soon as they say their \
+date of birth, call `caller_gave_date_of_birth`. Do not read either back, and do not ask \
+the caller to repeat or spell something they have already told you.
+- If the details do not match, say only that they do not match your records and ask for \
+both again. Never say which one was wrong, and never say whether a name is known to you.
+- When the tool tells you the check is closed, stop asking. Offer to take a message, then \
+end the call.
+- Use `take_message` only when the caller has asked you to pass something on, and only once \
+for each thing they ask.
+- Do not discuss appointments, times or practitioners in this step, whatever the caller says.
 """,
             tools=[_end_call()],
         )
+        self._name = ""
 
     async def on_enter(self) -> None:
         # A fixed greeting, not a generated one: the first thing a caller hears
@@ -81,25 +97,44 @@ offer to take a message with `take_message`, then end the call.
         self.session.say(GREETING)
 
     @function_tool
-    async def caller_gave_name(self, ctx: RunContext[CallState], full_name: str):
+    async def caller_gave_name(self, ctx: RunContext[CallState], full_name: str) -> str:
         """Call this as soon as the caller has told you their full name.
 
         Args:
             full_name: The caller's first and last name, as they said it.
         """
-        state = ctx.userdata
-        patient = state.clinic.find_patient(full_name)
-        if patient is None:
-            state.record("name_not_recognised", name=full_name)
-            raise ToolError(
-                "No patient is registered under that name. Ask them to repeat or spell it once; "
-                "if it still does not match, offer to take a message."
-            )
-        state.patient = patient
-        state.record("identified", patient_id=patient.id)
+        self._name = full_name
+        return "Noted. Nothing has been checked yet. Now get their date of birth."
+
+    @function_tool
+    async def caller_gave_date_of_birth(
+        self, ctx: RunContext[CallState], year: int, month: int, day: int
+    ):
+        """Call this as soon as the caller has told you their date of birth. It runs the check.
+
+        A date said aloud is complete when it has a day, a month and a year, however it is
+        punctuated: "the fourteenth of March. Nineteen ninety," is 14 March 1990.
+
+        Args:
+            year: Four digits, like 1990. "Nineteen ninety" and "ninety" both mean 1990.
+            month: 1 to 12.
+            day: 1 to 31.
+        """
+        if not self._name:
+            raise ToolError("You do not have the caller's full name yet. Ask for it first.")
+        if 0 <= year < 100:
+            year += 2000 if year <= ctx.userdata.now.year % 100 else 1900
+        try:
+            born = date(year, month, day)
+        except ValueError:
+            raise ToolError("That is not a real date. Ask for the date of birth again.") from None
+        try:
+            ctx.userdata.gateway.verify_identity(self._name, born)
+        except Refused as refused:
+            raise ToolError(str(refused)) from None
         # Returning the next step hands the call over to it. Nothing is said
         # here: the new step opens by itself, so the caller hears one reply.
-        return HelpWithAppointment(state)
+        return HelpWithAppointment(ctx.userdata)
 
     @function_tool
     async def take_message(self, ctx: RunContext[CallState], caller_name: str, message: str) -> str:
@@ -109,19 +144,19 @@ offer to take a message with `take_message`, then end the call.
             caller_name: The name the caller gave.
             message: What they want the clinic to know or do, in their words.
         """
-        ctx.userdata.clinic.leave_message(caller_name, message)
-        ctx.userdata.record("message_taken", caller_name=caller_name)
+        ctx.userdata.gateway.take_message(caller_name, message)
         return "The message has been passed to the clinic team."
 
 
 class HelpWithAppointment(Agent):
-    """Step two: the caller is a known patient. Their appointment can be changed."""
+    """Step two: the caller has passed the identity check. Their appointment can be changed."""
 
     def __init__(self, state: CallState) -> None:
-        if state.patient is None:
+        patient = state.gateway.patient
+        if patient is None:
             raise ValueError("this step exists only after the caller has been identified")
-        self._patient = state.patient
-        appointment = state.clinic.upcoming_appointment(state.patient.id)
+        self._first_name = patient.first_name
+        appointment = state.gateway.appointment()
         if appointment is None:
             about = "They have no upcoming appointment. You can only take a message."
         else:
@@ -132,13 +167,20 @@ class HelpWithAppointment(Agent):
         super().__init__(
             instructions=STYLE
             + f"""
-You are speaking with {state.patient.full_name}, a registered patient. {about}
+You are speaking with {patient.full_name}, a registered patient whose identity has been \
+checked. {about}
 
 What you can do, with your tools:
 - Confirm the appointment, cancel it, or move it to a free time.
 - To move it, call `find_free_slots` and offer the times it returns, all in one sentence. \
 Offer no other times. If they want a time that is not in that list, say you do not have it.
-- Before you change anything, say what you are about to do and wait for a clear yes.
+- Every change takes two steps. The moment the caller asks to cancel, to confirm, or picks \
+one of the offered times, call `propose_change`. It changes nothing and gives you the \
+question to ask. Ask exactly that question and stop. Do not ask "are you sure" in your own \
+words first: the tool's question is the only confirmation there is.
+- Only after the caller has answered that question, call `commit_change`. It decides for \
+itself whether the caller said yes.
+- Never tell the caller something was changed unless `commit_change` said so.
 - Change nothing the caller did not ask for. If they decline, hesitate, or say goodbye \
 without deciding, leave the appointment exactly as it is and say so.
 - For anything else, take a message with `take_message`.
@@ -150,78 +192,63 @@ without deciding, leave the appointment exactly as it is and say so.
     async def on_enter(self) -> None:
         self.session.generate_reply(
             instructions=(
-                f"Greet {self._patient.first_name} by first name, say which appointment you "
+                f"Greet {self._first_name} by first name, say which appointment you "
                 "can see for them (treatment, practitioner, when), and ask how you can help."
             )
         )
 
-    def _appointment(self, state: CallState) -> Appointment:
-        appointment = state.clinic.upcoming_appointment(self._patient.id)
-        if appointment is None:
-            raise ToolError("This patient has no upcoming appointment. Offer to take a message.")
-        return appointment
-
     @function_tool
     async def find_free_slots(self, ctx: RunContext[CallState]) -> list[dict[str, str]]:
         """Look up the free times the appointment could be moved to."""
-        state = ctx.userdata
-        slots = state.clinic.free_slots()
-        state.offered_slot_ids.update(slot.id for slot in slots)
-        state.record("slots_offered", slot_ids=[slot.id for slot in slots])
-        if not slots:
+        try:
+            offers = ctx.userdata.gateway.offer_slots()
+        except Refused as refused:
+            raise ToolError(str(refused)) from None
+        if not offers:
             raise ToolError("There are no free times. Offer to take a message for the clinic team.")
         return [
-            {
-                "slot_id": slot.id,
-                "when": say_when(slot.start, state.now),
-                "practitioner": slot.practitioner,
-            }
-            for slot in slots
+            {"option": offer.id, "when": offer.when, "practitioner": offer.practitioner}
+            for offer in offers
         ]
 
     @function_tool
-    async def move_appointment(self, ctx: RunContext[CallState], slot_id: str) -> str:
-        """Move the appointment to one of the free times. Only after the caller clearly agreed.
-
-        The moved appointment is already confirmed; do not call `confirm_appointment` after this.
+    async def propose_change(
+        self,
+        ctx: RunContext[CallState],
+        change: Literal["move", "cancel", "confirm"],
+        option: str | None = None,
+    ) -> str:
+        """Prepare a change to the appointment and get the sentence to read back. Changes nothing.
 
         Args:
-            slot_id: The `slot_id` of a time returned by `find_free_slots` in this call.
+            change: "move" to another time, "cancel" it, or "confirm" the caller is coming.
+            option: For a move only: the `option` of a time returned by `find_free_slots`.
         """
-        state = ctx.userdata
-        if slot_id not in state.offered_slot_ids:
-            state.record("move_refused", slot_id=slot_id)
-            raise ToolError(
-                "That time was not offered in this call. Call `find_free_slots` and offer only "
-                "the times it returns."
-            )
+        turn, _ = _what_the_caller_said(ctx)
         try:
-            moved = state.clinic.move(self._appointment(state).id, slot_id)
-        except ClinicError as exc:
-            raise ToolError(f"The move did not go through: {exc}.") from exc
-        state.offered_slot_ids.discard(slot_id)
-        state.record("moved", appointment_id=moved.id, slot_id=slot_id)
-        return f"Moved to {say_when(moved.start, state.now)} with {moved.practitioner}."
+            proposal = ctx.userdata.gateway.propose(change, turn, option)
+        except Refused as refused:
+            raise ToolError(str(refused)) from None
+        return (
+            f'Nothing has changed yet. Ask the caller: "{proposal.read_back}. Is that right?" '
+            "Then wait for their answer before calling `commit_change`."
+        )
 
     @function_tool
-    async def cancel_appointment(self, ctx: RunContext[CallState]) -> str:
-        """Cancel the appointment. Only after the caller clearly agreed."""
+    async def commit_change(self, ctx: RunContext[CallState]) -> str:
+        """Carry out the change that was read back, after the caller has answered."""
         state = ctx.userdata
-        cancelled = state.clinic.cancel(self._appointment(state).id)
-        state.record("cancelled", appointment_id=cancelled.id)
-        return "The appointment is cancelled."
-
-    @function_tool
-    async def confirm_appointment(self, ctx: RunContext[CallState]) -> str:
-        """Record that the patient will attend the appointment as it stands.
-
-        Only when the caller has said, in so many words, that they are coming. A caller
-        who says goodbye or "that's all" has not confirmed anything.
-        """
-        state = ctx.userdata
-        confirmed = state.clinic.confirm(self._appointment(state).id)
-        state.record("confirmed", appointment_id=confirmed.id)
-        return f"Confirmed for {say_when(confirmed.start, state.now)}."
+        turn, words = _what_the_caller_said(ctx)
+        try:
+            appointment = await state.gateway.commit(turn, words)
+        except Refused as refused:
+            raise ToolError(str(refused)) from None
+        if appointment.status == "cancelled":
+            return "Done. The appointment is cancelled."
+        return (
+            f"Done. The appointment is {say_when(appointment.start, state.now)} with "
+            f"{appointment.practitioner}, and it is confirmed."
+        )
 
     @function_tool
     async def take_message(self, ctx: RunContext[CallState], message: str) -> str:
@@ -230,7 +257,5 @@ without deciding, leave the appointment exactly as it is and say so.
         Args:
             message: What the patient wants the clinic to know or do, in their words.
         """
-        state = ctx.userdata
-        state.clinic.leave_message(self._patient.full_name, message, self._patient.id)
-        state.record("message_taken", patient_id=self._patient.id)
+        ctx.userdata.gateway.take_message(self._first_name, message)
         return "The message has been passed to the clinic team."
