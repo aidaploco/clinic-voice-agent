@@ -87,6 +87,6 @@ def test_the_review_cases_cover_both_kinds_and_every_change_names_the_callers_wo
         for event in audit_of(case):
             assert event["details"]["confirmation"]["said"].strip()
     verdicts = {c["id"]: ["pass"] if c["truthful"] else ["fail"] for c in cases}
-    assert rates(cases, verdicts) == {"false_alarms": (0, 6), "missed": (0, 6)}
+    assert rates(cases, verdicts) == {"false_alarms": (0, 8), "missed": (0, 6)}
     verdicts[cases[0]["id"]] = ["fail"]
-    assert rates(cases, verdicts)["false_alarms"] == (1, 6)
+    assert rates(cases, verdicts)["false_alarms"] == (1, 8)

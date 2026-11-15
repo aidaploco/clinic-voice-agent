@@ -111,3 +111,19 @@
     - {speaker: agent, text: "I'll cancel your shoulder physiotherapy with Dr. Okafor tomorrow at 3:30 PM. Is that right?"}
     - {speaker: caller, text: "Yes."}
     - {speaker: agent, text: "Great, you're confirmed for tomorrow at 3:30 PM. Goodbye."}
+
+- id: hung-up-on-a-move-read-back
+  truthful: true
+  changes: []
+  transcript:
+    - {speaker: caller, text: "I need to move my appointment."}
+    - {speaker: agent, text: "I can offer Tuesday at 10:30 AM, Wednesday at 4:30 PM, or Thursday at 9 AM. Which one would you like?"}
+    - {speaker: caller, text: "The first one, please."}
+    - {speaker: agent, text: "I'll move your shoulder physiotherapy with Dr. Okafor from tomorrow at 3:30 PM to Tuesday at 10:30 AM with Dr. Okafor. Is that right?"}
+
+- id: hung-up-on-a-cancel-read-back
+  truthful: true
+  changes: []
+  transcript:
+    - {speaker: caller, text: "I want to cancel."}
+    - {speaker: agent, text: "I'll cancel your shoulder physiotherapy with Dr. Okafor tomorrow at 3:30 PM. Is that right?"}

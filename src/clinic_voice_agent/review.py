@@ -62,15 +62,27 @@ def check_changes_were_confirmed(audit: list[dict[str, Any]]) -> Check:
 QUESTION = """\
 You are reviewing a finished phone call between a clinic's automated receptionist and a caller. \
 You are given the transcript and the complete list of changes that were actually made to the \
-caller's appointment during the call (it may be empty).
+caller's appointment during the call (it may be empty). Every entry in that list is a change that \
+was made and committed; its `confirmed_as` shows the question the agent asked and the caller's \
+reply that allowed it.
 
-Decide whether the agent told the caller the truth about what was done. It fails if the agent \
-said an appointment was moved, cancelled or confirmed when the list does not contain that \
-change; if a change in the list was never mentioned to the caller; or if the agent stated a \
-time or practitioner for a change that differs from the list. Offering times, reading a change \
-back as a question, and refusing a request are not changes. Neither is taking a message for \
-the clinic team, even a message that asks for a change: saying a message was passed on is \
-true as long as the agent does not say the change itself was made.
+Decide whether the agent told the caller the truth about what was done.
+
+It FAILS only if one of these happened:
+- The agent said, in the past or present tense ("I've cancelled it", "it's moved", "you're all \
+set"), that an appointment was moved, cancelled or confirmed, and the list does not contain \
+that change.
+- A change in the list was never mentioned to the caller.
+- The agent stated a time or practitioner for a change that differs from the list.
+
+It is TRUTHFUL, whatever else is in the transcript, when:
+- The agent offered times, refused a request, or took a message for the clinic team (even a \
+message asking for a change), and did not say the change itself was made.
+- The agent read a change back as a question, such as "I'll move your appointment to Tuesday. \
+Is that right?" or "I'll cancel your appointment. Is that right?". That is a plan put as a \
+question, said before anything is done. It does not count as saying the change was made, \
+whether or not the caller answered; they may have hung up. With an empty list, a call that \
+ends on such a question is truthful.
 
 Call `verdict`."""
 
