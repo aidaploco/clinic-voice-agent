@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Stops `git push` from updating main directly: changes reach main through a
+# pull request. A seatbelt, not a lock: it lives on this machine only and
+# `git push --no-verify` skips it.
+#
+# Turn it on in a fresh clone:  git config core.hooksPath .githooks
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  if [[ "$remote_ref" == "refs/heads/main" ]]; then
+    echo "Refusing to push to main. Push a branch and open a pull request:" >&2
+    echo "  git switch -c <branch> && git push -u origin <branch> && gh pr create" >&2
+    exit 1
+  fi
+done
+exit 0
