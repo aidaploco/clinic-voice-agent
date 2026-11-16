@@ -41,3 +41,9 @@ def problems(
             f"({len(trunk_allowed)} on the trunk, {len(env_allowed)} in the environment)"
         )
     return found
+
+
+async def replace_rule(sip, rule_id: str, rule: api.SIPDispatchRuleInfo) -> None:
+    """Replace a dispatch rule, whole. `sip` is `LiveKitAPI().sip`; one place makes the call so a
+    test can check it against the SDK's real signature."""
+    await sip.update_dispatch_rule(rule_id, rule)

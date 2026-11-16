@@ -74,3 +74,18 @@ def test_the_checks_name_what_would_make_the_line_refuse_everyone_without_naming
     assert "hides the caller's number" in text and "ALLOWED_NUMBERS is empty" in text
     assert "differ" in " ".join(problems(make_rule(), {OWNER}, {"+14155550999"}))
     assert OWNER not in " ".join(problems(make_rule(), {OWNER}, {"+14155550999"}))
+
+
+async def test_replacing_a_rule_calls_livekit_the_way_its_client_really_takes_it():
+    # An autospec has the real method's signature, so a wrong call is a TypeError here instead
+    # of on the owner's account (the first live run of the script made exactly that mistake).
+    from unittest.mock import create_autospec
+
+    from livekit.api.sip_service import SipService
+
+    from clinic_voice_agent.inbound import replace_rule
+
+    sip = create_autospec(SipService, instance=True)
+    rule = rule_for_agent(make_rule(), "clinic-receptionist")
+    await replace_rule(sip, "SDR_x", rule)
+    sip.update_dispatch_rule.assert_awaited_once_with("SDR_x", rule)

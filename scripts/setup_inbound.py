@@ -18,7 +18,7 @@ from google.protobuf import json_format
 from livekit import api
 
 from clinic_voice_agent.allowlist import normalise
-from clinic_voice_agent.inbound import agents_of, problems, rule_for_agent
+from clinic_voice_agent.inbound import agents_of, problems, replace_rule, rule_for_agent
 from clinic_voice_agent.settings import get_settings
 
 BACKUP = Path(".inbound-rule-backup.json")
@@ -50,11 +50,7 @@ async def main(apply: bool, revert: bool) -> int:
             saved = json_format.Parse(BACKUP.read_text(), api.SIPDispatchRuleInfo())
             print(f"restoring the saved rule (dispatches: {agents_of(saved) or 'no agent'})")
             if apply:
-                await lk.sip.update_dispatch_rule(
-                    api.UpdateSIPDispatchRuleRequest(
-                        sip_dispatch_rule_id=rule.sip_dispatch_rule_id, replace=saved
-                    )
-                )
+                await replace_rule(lk.sip, rule.sip_dispatch_rule_id, saved)
                 print("done")
             else:
                 print("dry run: add --apply to restore")
@@ -73,11 +69,7 @@ async def main(apply: bool, revert: bool) -> int:
             print("dry run: nothing changed. Add --apply to change the rule.")
             return 0
         BACKUP.write_text(json_format.MessageToJson(rule))
-        await lk.sip.update_dispatch_rule(
-            api.UpdateSIPDispatchRuleRequest(
-                sip_dispatch_rule_id=rule.sip_dispatch_rule_id, replace=desired
-            )
-        )
+        await replace_rule(lk.sip, rule.sip_dispatch_rule_id, desired)
         print(f"done. The old rule is saved in {BACKUP}; `--revert --apply` puts it back.")
         return 0
     finally:
