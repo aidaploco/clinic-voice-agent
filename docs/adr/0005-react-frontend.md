@@ -18,7 +18,8 @@ ADR-0004 chose a single static page to avoid a second toolchain. The owner wants
 
 ## Consequences
 
-- A second toolchain: Node 22.12 or newer, a lockfile and a CI job. A stranger needs `npm ci && npm run build` once before the page is served; the server says so when the build is missing.
+- A second toolchain: Node 22.13 or newer, a lockfile and a CI job. A stranger needs `npm ci && npm run build` once before the page is served; the server says so when the build is missing.
+- jsdom (the test browser) is held at 29.1.1: 30 needs Node 24.15 or 22.22, newer than the 24.8 the owner's machine runs, and that was found from the owner's install warnings, not before.
 - TypeScript is held at 6.0 because `typescript-eslint` supports versions below 6.1; newer is available and will be taken when the linter does.
 - The bundle is about 780 kB (216 kB compressed), mostly the LiveKit SDK. Fine for a page run on one's own machine.
 - `npm audit` reports one moderate advisory (denial of service in `minimatch`) reached only through `typescript-eslint`, a build-time tool that reads our own files. npm's suggested fix downgrades the linter across a breaking change, so it is not applied; it is recorded in VERIFICATION.

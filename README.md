@@ -29,7 +29,7 @@ uv run python -m clinic_voice_agent.worker console    # talk to her in this term
 
 ### In a browser
 
-The page is React and TypeScript (see [ADR-0005](docs/adr/0005-react-frontend.md)), in `web/`. Build it once (Node 22.12 or newer), then run the worker and the page server:
+The page is React and TypeScript (see [ADR-0005](docs/adr/0005-react-frontend.md)), in `web/`. Build it once (Node 22.13 or newer), then run the worker and the page server:
 
 ```bash
 (cd web && npm ci && npm run build)
