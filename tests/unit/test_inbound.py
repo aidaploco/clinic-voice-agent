@@ -10,7 +10,7 @@ ALLOWED = frozenset({OWNER})
 
 def test_a_number_is_compared_the_way_it_is_dialled_not_the_way_it_is_typed():
     assert normalise("+1 (415) 555-0123") == OWNER
-    assert parse_allowed(" +1 415 555 0123 , +52 55 1234 5678") == {OWNER, "+525512345678"}
+    assert parse_allowed(" +1 415 555 0123 , +1 415 555 0142") == {OWNER, "+14155550142"}
     assert parse_allowed("") == frozenset()
 
 
@@ -23,9 +23,9 @@ def test_a_malformed_allowlist_entry_is_an_error_that_does_not_echo_the_number(b
 
 def test_the_owners_phone_is_taken_and_a_stranger_is_turned_away():
     assert admit(True, "+1 415 555 0123", ALLOWED).allowed
-    refused = admit(True, "+14155550999", ALLOWED)
+    refused = admit(True, "+14155550199", ALLOWED)
     assert not refused.allowed and refused.reason == "number_not_allowed"
-    assert "555" not in refused.caller and refused.caller.endswith("999")
+    assert "555" not in refused.caller and refused.caller.endswith("199")
 
 
 def test_a_phone_call_is_refused_when_the_number_is_missing_or_the_list_is_empty():
@@ -72,8 +72,8 @@ def test_the_checks_name_what_would_make_the_line_refuse_everyone_without_naming
     assert problems(make_rule(), {OWNER}, {OWNER}) == []
     text = " ".join(problems(make_rule(hide_phone_number=True), {OWNER}, set()))
     assert "hides the caller's number" in text and "ALLOWED_NUMBERS is empty" in text
-    assert "differ" in " ".join(problems(make_rule(), {OWNER}, {"+14155550999"}))
-    assert OWNER not in " ".join(problems(make_rule(), {OWNER}, {"+14155550999"}))
+    assert "differ" in " ".join(problems(make_rule(), {OWNER}, {"+14155550199"}))
+    assert OWNER not in " ".join(problems(make_rule(), {OWNER}, {"+14155550199"}))
 
 
 async def test_replacing_a_rule_calls_livekit_the_way_its_client_really_takes_it():

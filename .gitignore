@@ -15,3 +15,4 @@ web/dist/
 
 # a saved copy of the phone line rule (holds phone numbers)
 .inbound-rule-backup.json
+.vscode/

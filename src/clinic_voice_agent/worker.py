@@ -26,6 +26,7 @@ from clinic_voice_agent.flow import CallState, IdentifyCaller
 from clinic_voice_agent.gateway import Gateway
 from clinic_voice_agent.hearing import DeafnessWatch
 from clinic_voice_agent.latency import latency_of
+from clinic_voice_agent.privacy import call_id_for
 from clinic_voice_agent.settings import get_settings
 
 # LiveKit's own connection settings (LIVEKIT_URL, LIVEKIT_API_KEY,
@@ -120,6 +121,11 @@ async def handle_call(ctx: JobContext) -> None:
         logger.warning("turning away a call: %s (%s)", admission.reason, admission.caller)
         ctx.delete_room()
         return
+
+    # What is stored and logged by this project names the call by an id, never by the room name,
+    # which for a phone call holds the caller's number.
+    call_id = call_id_for(ctx.room.name)
+    ctx.log_context_fields = {**ctx.log_context_fields, "room": call_id}
 
     started = datetime.now()
     if limits.calls_today(settings.recordings_dir, started) >= settings.daily_call_cap:
@@ -231,7 +237,7 @@ async def handle_call(ctx: JobContext) -> None:
             if check["verdict"] == "fail":
                 logger.warning("review failed: %s: %s", check["name"], check["detail"])
         record = records.call_record(
-            ctx.room.name,
+            call_id,
             started,
             gateway,
             clinic,
@@ -247,8 +253,8 @@ async def handle_call(ctx: JobContext) -> None:
         logger.info("call record written to %s", path)
         if settings.database_url is not None:
             try:
-                call_id = await store.save_call(settings.database_url.get_secret_value(), record)
-                logger.info("call stored as %s", call_id)
+                stored_id = await store.save_call(settings.database_url.get_secret_value(), record)
+                logger.info("call stored as %s", stored_id)
             except Exception:
                 logger.exception("the call was not stored in the database; the file has it")
 
