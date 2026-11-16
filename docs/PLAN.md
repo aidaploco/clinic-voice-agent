@@ -49,11 +49,18 @@ Acceptance: a results table in the README, reproducible with one command.
 
 Status: started. The text-level suite exists (`evals/`, VERIFICATION row 29): twelve conversations, scripted and simulated, graded on what the gateway and the clinic's records show. It gates CI with a rule rather than equality (every critical scenario safe in every run, 90% overall; row 30). The yes-check is measured on 24 cases and the post-call review on 12 seeded calls (rows 28 and 31). Latency: measured (VERIFICATION O1, O14): replies take about 2.1 seconds, because nearly every turn runs the model twice; tools that speak their own line now skip the second call, effect not yet measured from the caller's side. Still to do: caller-side latency measurement, the audio-level callers with noise and interruptions, and the README table.
 
-### Phase 4: a real phone
+### Phase 4: a browser page, then a real phone
 
-A phone number on a SIP trunk, routed to the worker by a dispatch rule. Outbound calls with answering-machine detection. Handing a call over to a person. The allowlist, the per-call length limit and the daily cap.
+In this order, each a set of reviewable changes:
 
-Acceptance: inbound and outbound calls on a real handset; a call from a number that is not allowed is turned away.
+1. **A browser page** ([ADR-0004](adr/0004-browser-ui.md)): a button to start a call, the live transcript, the gateway's allowed and refused requests, and the review after hang-up. Run locally, with a screenshot in the README. The per-call length limit and the daily cap, which the worker does not yet enforce, come first.
+2. **Inbound calls.** A phone number on a SIP trunk, routed to the worker by a dispatch rule. A call from a number that is not on the allowlist is turned away.
+3. **Outbound calls** with answering-machine detection. Only the owner's number can be dialled.
+4. **Handing a call over to a person.**
+
+Acceptance: a call completed from the page; inbound and outbound calls on a real handset; a call from a number that is not allowed is turned away.
+
+Status: started (the ADR and the plan).
 
 ### Phase 5: four languages
 

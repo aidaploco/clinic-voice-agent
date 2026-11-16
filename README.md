@@ -4,7 +4,7 @@ A multilingual phone receptionist for a fictional physiotherapy clinic, built on
 
 > **This is a demo project.** "Quillbrook Physio" and its receptionist "Emily" are fictional, and every patient, appointment and slot is invented data.
 
-**Status: Phase 2.** Emily speaks English, checks the caller's name and date of birth, and can confirm, move or cancel an appointment in a mock clinic. Every change goes through a gateway that reads it back and waits for a clear yes, and every call is recorded and reviewed afterwards. No phone number yet, and one language. [docs/PLAN.md](docs/PLAN.md) has the phases; [docs/VERIFICATION.md](docs/VERIFICATION.md) records what has been proven by running it and what is still assumed.
+**Status: Phase 3 done, Phase 4 started.** Emily speaks English, checks the caller's name and date of birth, and can confirm, move or cancel an appointment in a mock clinic. Every change goes through a gateway that reads it back and waits for a clear yes, and every call is recorded and reviewed afterwards. Simulated callers grade her in CI. Next: a browser page to talk to her, then a phone number. One language so far. [docs/PLAN.md](docs/PLAN.md) has the phases; [docs/VERIFICATION.md](docs/VERIFICATION.md) records what has been proven by running it and what is still assumed.
 
 ## What it is going to be
 
