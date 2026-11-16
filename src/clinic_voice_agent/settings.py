@@ -3,7 +3,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from clinic_voice_agent.allowlist import parse_allowed
@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     # What a call may cost. A call is ended at the time limit; once the day's cap of calls
     # is reached, further callers are told so and hung up on.
     max_call_seconds: int = 300
+    # Calls this worker runs at once, and how long the line may stay silent before it is ended.
+    # The cap applies under `worker start` (page, containers, phone), not `dev` or `console`.
+    max_concurrent_calls: int = Field(default=1, ge=1)
+    silence_seconds: int = Field(default=25, ge=5)
     daily_call_cap: int = 25
 
     # Postgres for call records. Optional: without it a call's record is the

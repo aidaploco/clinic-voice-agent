@@ -24,6 +24,7 @@ from clinic_voice_agent.clinic import demo_clinic
 from clinic_voice_agent.consent import ModelConsent
 from clinic_voice_agent.flow import CallState, IdentifyCaller
 from clinic_voice_agent.gateway import Gateway
+from clinic_voice_agent.hearing import DeafnessWatch
 from clinic_voice_agent.latency import latency_of
 from clinic_voice_agent.settings import get_settings
 
@@ -34,6 +35,9 @@ load_dotenv()
 logger = logging.getLogger("clinic_voice_agent.worker")
 
 WORKER_NAME = get_settings().agent_name
+
+# How long after speech ends the transcript may take before the framework reports a miss.
+TRANSCRIPTION_TIMEOUT = 4.0
 
 # How long to wait for someone to be in the room before giving up on the call.
 JOIN_SECONDS = 30
@@ -48,7 +52,13 @@ CLOSE_REASONS = {
     "error": "service_failed",
 }
 
-server = AgentServer()
+
+def concurrency_load(worker: AgentServer) -> float:
+    """How full this worker is, by calls running; at the cap it is given no new calls."""
+    return limits.concurrency_load(len(worker.active_jobs), get_settings().max_concurrent_calls)
+
+
+server = AgentServer(load_fnc=concurrency_load)
 
 
 def load_models(proc: JobProcess) -> None:
@@ -129,6 +139,8 @@ async def handle_call(ctx: JobContext) -> None:
         llm=llm,
         tts=voice.build_tts(settings),
         turn_handling=voice.TURN_HANDLING,
+        user_away_timeout=settings.silence_seconds,  # both sides quiet this long: "away"
+        transcription_timeout=TRANSCRIPTION_TIMEOUT,
     )
 
     errors: list[dict[str, Any]] = []
@@ -157,6 +169,45 @@ async def handle_call(ctx: JobContext) -> None:
         limits.hang_up_after(settings.max_call_seconds, say_time_limit_goodbye, ctx.delete_room)
     )
 
+    ending_now = False
+    hang_ups: set[asyncio.Task] = set()
+
+    def end_call(why: str, goodbye: str) -> None:
+        """Say goodbye and hang up, once, whatever raised it."""
+        nonlocal ending_now
+        if ending_now:
+            return
+        ending_now = True
+
+        async def say_goodbye() -> None:
+            ending.setdefault("why", why)
+            await session.say(goodbye)
+
+        task = asyncio.create_task(limits.hang_up_after(0, say_goodbye, ctx.delete_room))
+        hang_ups.add(task)  # a task nobody holds can be collected before it finishes
+        task.add_done_callback(hang_ups.discard)
+
+    watch = DeafnessWatch()
+
+    def on_user_state(event: Any) -> None:
+        if event.new_state == "away":
+            logger.info(
+                "the line has been silent for %s seconds; ending the call", settings.silence_seconds
+            )
+            end_call("silence", limits.SILENCE_GOODBYE)
+
+    def on_words(event: Any) -> None:
+        if event.is_final and event.transcript.strip():
+            watch.words_heard()
+
+    def on_speech_without_words(event: Any) -> None:
+        if watch.speech_without_words(event.speech_duration):
+            logger.error("speech was detected but no words came back, twice; ending the call")
+            errors.append(
+                {"service": "STT", "error": "no transcript after speech", "recoverable": False}
+            )
+            end_call("stt_silent", limits.DEAF_GOODBYE)
+
     def on_close(event: Any) -> None:
         time_limit.cancel()
         reason = str(getattr(event, "reason", "closed")).split(".")[-1].lower()
@@ -164,6 +215,9 @@ async def handle_call(ctx: JobContext) -> None:
 
     session.on("error", on_error)
     session.on("close", on_close)
+    session.on("user_state_changed", on_user_state)
+    session.on("user_input_transcribed", on_words)
+    session.on("user_transcription_timeout", on_speech_without_words)
 
     async def write_record() -> None:
         transcript = records.transcript_of(session.history)

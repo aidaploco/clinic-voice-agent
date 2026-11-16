@@ -54,3 +54,12 @@ async def test_a_call_that_ends_sooner_cancels_the_timer_and_nothing_is_said():
     except asyncio.CancelledError:
         pass
     assert events == []
+
+
+def test_a_worker_reads_as_full_exactly_when_every_allowed_call_is_running():
+    from clinic_voice_agent.limits import concurrency_load
+
+    assert concurrency_load(0, 1) == 0.0 and concurrency_load(1, 1) == 1.0
+    assert concurrency_load(1, 2) == 0.5 and concurrency_load(2, 2) == 1.0
+    # the framework's production threshold is 0.7: below it a worker takes calls, above it not
+    assert concurrency_load(1, 2) < 0.7 <= concurrency_load(2, 2)

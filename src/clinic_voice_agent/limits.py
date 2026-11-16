@@ -11,10 +11,21 @@ from datetime import datetime
 from pathlib import Path
 
 TIME_LIMIT_GOODBYE = "I'm sorry, we've reached the time limit for this call. Goodbye."
+SILENCE_GOODBYE = "I haven't heard anything, so I'll end the call now. Goodbye."
+DEAF_GOODBYE = "I'm sorry, I can't hear you properly. Please try calling again. Goodbye."
 CAP_REACHED = (
     "Thank you for calling Quillbrook Physio. We can't take any more calls today. "
     "Please try again tomorrow. Goodbye."
 )
+
+
+def concurrency_load(active: int, maximum: int) -> float:
+    """The worker's load as the framework reads it: 1.0 when every allowed call is running.
+
+    Above its threshold (0.7 under `start`) a worker marks itself unavailable and is given no
+    new calls, so at the cap the next caller is not answered rather than answered at a cost.
+    """
+    return active / maximum
 
 
 def calls_today(folder: Path, now: datetime) -> int:
