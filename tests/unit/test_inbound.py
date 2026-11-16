@@ -89,3 +89,15 @@ async def test_replacing_a_rule_calls_livekit_the_way_its_client_really_takes_it
     rule = rule_for_agent(make_rule(), "clinic-receptionist")
     await replace_rule(sip, "SDR_x", rule)
     sip.update_dispatch_rule.assert_awaited_once_with("SDR_x", rule)
+
+
+def test_a_call_this_project_placed_is_taken_only_for_the_identity_it_gave_the_party_it_dialled():
+    from clinic_voice_agent.allowlist import admit_dialled
+
+    assert admit_dialled(True, "phone-out-0a1b2c3d", OWNER, ALLOWED).allowed
+    assert admit_dialled(True, "phone-out-0a1b2c3d", None, ALLOWED).allowed  # number not shown
+    assert not admit_dialled(True, "caller-0a1b2c3d", OWNER, ALLOWED).allowed  # not our identity
+    assert not admit_dialled(False, "phone-out-0a1b2c3d", OWNER, ALLOWED).allowed  # not a phone
+    refused = admit_dialled(True, "phone-out-0a1b2c3d", "+14155550199", ALLOWED)
+    assert not refused.allowed and refused.reason == "number_not_allowed"
+    assert "555" not in refused.caller  # masked

@@ -15,12 +15,15 @@ from livekit import api
 
 from clinic_voice_agent.calls import CALL_ID, find_call, list_calls
 from clinic_voice_agent.limits import calls_today
+from clinic_voice_agent.outbound import OutboundRefused, call_the_owner
 from clinic_voice_agent.settings import Settings, get_settings
 
 # Long enough to join, short enough that a leaked token is useless by the time it matters.
 TOKEN_LIFETIME = timedelta(minutes=5)
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 SETTINGS = web.AppKey("settings", Settings)
+LIVEKIT = web.AppKey("livekit", object)  # a function that makes a LiveKit client
+DIALLING = web.AppKey("dialling", asyncio.Lock)
 
 
 def new_room_name() -> str:
@@ -89,6 +92,38 @@ async def token(request: web.Request) -> web.Response:
     return web.json_response({"url": settings.livekit_url, "token": jwt, "room": room})
 
 
+def livekit_client(settings: Settings) -> api.LiveKitAPI:
+    if not (settings.livekit_url and settings.livekit_api_key and settings.livekit_api_secret):
+        raise OutboundRefused(
+            503, "LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET are not set"
+        )
+    return api.LiveKitAPI(
+        settings.livekit_url,
+        settings.livekit_api_key.get_secret_value(),
+        settings.livekit_api_secret.get_secret_value(),
+    )
+
+
+async def call_me(request: web.Request) -> web.Response:
+    """Ring the owner's phone and put Emily on the line. Takes no number: the one that is
+    dialled comes from ALLOWED_NUMBERS and nothing the browser sends can change it."""
+    settings: Settings = request.app[SETTINGS]
+    lock: asyncio.Lock = request.app[DIALLING]
+    if lock.locked():
+        return web.json_response({"error": "a call is already being placed"}, status=409)
+    async with lock:
+        lk = None
+        try:
+            lk = request.app[LIVEKIT](settings)
+            room = await call_the_owner(lk, settings)
+        except OutboundRefused as refused:
+            return web.json_response({"error": refused.message}, status=refused.status)
+        finally:
+            if lk is not None:
+                await lk.aclose()
+    return web.json_response({"room": room})
+
+
 async def call_list(request: web.Request) -> web.Response:
     """The newest calls, newest first: web, phone and scripted. Summaries only."""
     try:
@@ -123,11 +158,14 @@ async def index(request: web.Request) -> web.StreamResponse:
     return web.FileResponse(page)
 
 
-def make_app(settings: Settings | None = None) -> web.Application:
+def make_app(settings: Settings | None = None, livekit=livekit_client) -> web.Application:
     app = web.Application(middlewares=[local_only])
     app[SETTINGS] = settings or get_settings()
+    app[LIVEKIT] = livekit
+    app[DIALLING] = asyncio.Lock()
     app.router.add_get("/", index)
     app.router.add_post("/api/token", token)
+    app.router.add_post("/api/call-me", call_me)
     app.router.add_get("/api/calls", call_list)
     app.router.add_get("/api/calls/{call_id}", call_record)
     assets = app[SETTINGS].web_dist / "assets"

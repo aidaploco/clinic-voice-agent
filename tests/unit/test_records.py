@@ -46,3 +46,15 @@ def test_a_record_carries_a_utc_offset_and_its_file_name_does_not(tmp_path):
     name = save(record, tmp_path).name
     assert name.endswith("-web-0a1b2c3d.json") and "+" not in name and ":" not in name
     assert len(name.split("-web-")[0]) == len("2026-11-16T100000")
+
+
+def test_a_record_says_when_emily_placed_the_call_and_otherwise_nothing():
+    clinic = demo_clinic(NOW)
+    gateway = Gateway(clinic, NOW, yes)
+    assert (
+        call_record("phone-out-0a1b2c3d", NOW, gateway, clinic, [], direction="outbound")[
+            "direction"
+        ]
+        == "outbound"
+    )
+    assert call_record("web-0a1b2c3d", NOW, gateway, clinic, [])["direction"] is None

@@ -33,6 +33,7 @@ def summarise(record: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": call_id,
         "channel": channel_of(call_id),
+        "direction": record.get("direction"),
         "started": record.get("started", ""),
         "ended_because": record.get("ended_because", ""),
         "appointment_after": record.get("appointment_after"),

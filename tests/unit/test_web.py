@@ -166,3 +166,98 @@ async def test_the_call_list_endpoint_returns_summaries_newest_first_and_is_loca
         assert one["transcript"][0]["text"] == "x"
     finally:
         await c.close()
+
+
+class FakeLiveKit:
+    def __init__(self):
+        self.closed = False
+
+    async def aclose(self):
+        self.closed = True
+
+
+async def call_me_client(tmp_path, outcome, **more):
+    """A page server whose LiveKit is a fake, and whose dialling `outcome` is a function."""
+    import clinic_voice_agent.web.server as server
+
+    fake = FakeLiveKit()
+    original = server.call_the_owner
+    server.call_the_owner = outcome
+    test_client = TestClient(
+        TestServer(
+            make_app(settings(tmp_path, allowed_numbers="+14155550123", **more), lambda s: fake)
+        )
+    )
+    await test_client.start_server()
+    return test_client, fake, lambda: setattr(server, "call_the_owner", original)
+
+
+async def test_call_me_returns_the_room_and_never_the_number_and_closes_the_client(tmp_path):
+    seen = {}
+
+    async def dial(lk, settings, requested=None):
+        seen["requested"] = requested
+        return "phone-out-0a1b2c3d"
+
+    c, fake, restore = await call_me_client(tmp_path, dial)
+    try:
+        # whatever the browser sends, no number reaches the dialling code
+        response = await c.post("/api/call-me", json={"to": "+19995550000"})
+        assert response.status == 200 and await response.json() == {"room": "phone-out-0a1b2c3d"}
+        assert seen["requested"] is None and fake.closed
+    finally:
+        restore()
+        await c.close()
+
+
+async def test_call_me_says_why_it_did_not_dial(tmp_path):
+    from clinic_voice_agent.outbound import OutboundRefused
+
+    async def refuse(lk, settings, requested=None):
+        raise OutboundRefused(503, "no worker joined the room, so the phone was not rung")
+
+    c, fake, restore = await call_me_client(tmp_path, refuse)
+    try:
+        response = await c.post("/api/call-me")
+        assert response.status == 503 and "not rung" in (await response.json())["error"]
+        assert fake.closed
+    finally:
+        restore()
+        await c.close()
+
+
+async def test_call_me_is_local_only_and_refuses_a_page_from_another_site(tmp_path):
+    async def dial(lk, settings, requested=None):
+        raise AssertionError("must not be reached")
+
+    c, fake, restore = await call_me_client(tmp_path, dial)
+    try:
+        assert (await c.post("/api/call-me", headers={"Host": "evil.example"})).status == 403
+        assert (
+            await c.post("/api/call-me", headers={"Origin": "https://evil.example"})
+        ).status == 403
+    finally:
+        restore()
+        await c.close()
+
+
+async def test_a_second_call_me_while_one_is_being_placed_is_refused(tmp_path):
+    import asyncio
+
+    release = asyncio.Event()
+
+    async def slow(lk, settings, requested=None):
+        await release.wait()
+        return "phone-out-aaaaaaaa"
+
+    c, fake, restore = await call_me_client(tmp_path, slow)
+    try:
+        first = asyncio.create_task(c.post("/api/call-me"))
+        await asyncio.sleep(0.1)
+        second = await c.post("/api/call-me")
+        assert second.status == 409
+        release.set()
+        assert (await first).status == 200
+    finally:
+        restore()
+        await c.close()

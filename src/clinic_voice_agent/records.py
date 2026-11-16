@@ -30,11 +30,13 @@ def call_record(
     ended_because: str = "",
     errors: list[dict[str, Any]] | None = None,
     checks: list[dict[str, str]] | None = None,
+    direction: str | None = None,
 ) -> dict[str, Any]:
     patient = gateway.patient
     appointment = clinic.last_known_appointment(patient.id) if patient else None
     return {
         "room": room,
+        "direction": direction,  # "outbound" for a call Emily placed, otherwise None
         # With a UTC offset, so the time means the same wherever it is read: a record written in
         # a container (UTC) and read on a laptop must not shift by hours.
         "started": started.astimezone().isoformat(timespec="seconds"),

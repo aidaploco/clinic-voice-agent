@@ -57,3 +57,23 @@ def admit(is_phone: bool, caller_number: str | None, allowed: frozenset[str]) ->
     if number not in allowed:
         return Admission(False, "number_not_allowed", mask(number))
     return Admission(True, "number_allowed", mask(number))
+
+
+DIALLED_PREFIX = "phone-out-"  # the identity this project gives the participant it dials
+
+
+def admit_dialled(
+    is_phone: bool, identity: str, caller_number: str | None, allowed: frozenset[str]
+) -> Admission:
+    """Whether to take a call this project placed itself.
+
+    The number was chosen from the allowlist before anything was dialled, and the participant
+    carries the identity given at dialling, which no one else can obtain. The number is checked
+    again whenever the network shows it, and a number that is shown and not allowed is refused.
+    """
+    if not is_phone or not identity.startswith(DIALLED_PREFIX):
+        return Admission(False, "not_the_dialled_party", "unknown")
+    number = normalise(caller_number) if caller_number else ""
+    if E164.match(number) and number not in allowed:
+        return Admission(False, "number_not_allowed", mask(number))
+    return Admission(True, "dialled", mask(number) if number else "dialled")

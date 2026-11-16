@@ -57,6 +57,12 @@ class Settings(BaseSettings):
     # malformed value stops the worker at startup instead of being quietly ignored.
     allowed_numbers: str = ""
 
+    # Outbound calls: the LiveKit trunk that dials out, how long to let the phone ring, and how long
+    # to wait for a worker to be in the room before dialling (so the phone never rings for nobody).
+    sip_outbound_trunk_id: str | None = None
+    ring_seconds: int = Field(default=30, ge=5, le=120)
+    agent_wait_seconds: float = Field(default=10.0, ge=1.0, le=60.0)
+
     # What a call may cost. A call is ended at the time limit; once the day's cap of calls
     # is reached, further callers are told so and hung up on.
     max_call_seconds: int = 300
@@ -78,6 +84,7 @@ class Settings(BaseSettings):
         "livekit_url",
         "livekit_api_key",
         "livekit_api_secret",
+        "sip_outbound_trunk_id",
         mode="before",
     )
     @classmethod

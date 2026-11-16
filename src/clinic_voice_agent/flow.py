@@ -68,10 +68,22 @@ def _what_the_caller_said(ctx: RunContext[CallState]) -> tuple[int, str]:
     return len(said), (said[-1] if said else "")
 
 
+OUTBOUND_GREETING = (
+    "Hello, this is Emily, the automated assistant at Quillbrook Physio, calling about an "
+    "appointment. May I have your full name, please?"
+)
+
+
+def opening_line(direction: str) -> str:
+    """What is said first: the clinic's greeting, or who is calling when Emily placed the call."""
+    return OUTBOUND_GREETING if direction == "outbound" else GREETING
+
+
 class IdentifyCaller(Agent):
     """Step one: find out who is calling. Nothing about any appointment is known here."""
 
-    def __init__(self) -> None:
+    def __init__(self, direction: str = "inbound") -> None:
+        self._direction = direction
         super().__init__(
             instructions=STYLE
             + """
@@ -98,7 +110,9 @@ for each thing they ask.
     async def on_enter(self) -> None:
         # A fixed greeting, not a generated one: the first thing a caller hears
         # should be the same every time, and it should be fast.
-        self.session.say(GREETING)
+        # On a call Emily placed she says who is calling and that it is about an appointment, and
+        # nothing more: the person who picked up may not be the patient.
+        self.session.say(opening_line(self._direction))
 
     @function_tool
     async def caller_gave_name(self, ctx: RunContext[CallState], full_name: str) -> str:

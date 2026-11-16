@@ -102,3 +102,12 @@ def test_a_record_with_no_readable_time_sorts_as_the_oldest_instead_of_failing(t
             json.dumps({"room": call_id, "started": started})
         )
     assert [c["id"] for c in list_calls(tmp_path)] == ["web-11111111", "web-22222222"]
+
+
+def test_a_summary_says_when_emily_placed_the_call():
+    assert (
+        summarise({"room": "phone-out-0a1b2c3d", "direction": "outbound"})["direction"]
+        == "outbound"
+    )
+    assert summarise({"room": "web-0a1b2c3d"})["direction"] is None
+    assert channel_of("phone-out-0a1b2c3d") == "phone"

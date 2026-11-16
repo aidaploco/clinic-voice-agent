@@ -19,13 +19,14 @@ from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProc
 from livekit.plugins import silero
 
 from clinic_voice_agent import limits, live, records, review, store, voice
-from clinic_voice_agent.allowlist import admit
+from clinic_voice_agent.allowlist import admit, admit_dialled
 from clinic_voice_agent.clinic import demo_clinic
 from clinic_voice_agent.consent import ModelConsent
 from clinic_voice_agent.flow import CallState, IdentifyCaller
 from clinic_voice_agent.gateway import Gateway
 from clinic_voice_agent.hearing import DeafnessWatch
 from clinic_voice_agent.latency import latency_of
+from clinic_voice_agent.outbound import direction_of
 from clinic_voice_agent.privacy import call_id_for
 from clinic_voice_agent.settings import get_settings
 
@@ -112,11 +113,13 @@ async def handle_call(ctx: JobContext) -> None:
     except TimeoutError:
         logger.warning("nobody joined the room within %s seconds", JOIN_SECONDS)
         return
-    admission = admit(
-        is_phone=caller.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP,
-        caller_number=caller.attributes.get("sip.phoneNumber"),
-        allowed=settings.allowed_set,
-    )
+    direction = direction_of(ctx.job.metadata)
+    is_phone = caller.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
+    number = caller.attributes.get("sip.phoneNumber")
+    if direction == "outbound":
+        admission = admit_dialled(is_phone, caller.identity, number, settings.allowed_set)
+    else:
+        admission = admit(is_phone=is_phone, caller_number=number, allowed=settings.allowed_set)
     if not admission.allowed:
         logger.warning("turning away a call: %s (%s)", admission.reason, admission.caller)
         ctx.delete_room()
@@ -246,6 +249,7 @@ async def handle_call(ctx: JobContext) -> None:
             ending.get("why", "worker_shutdown"),
             errors,
             checks,
+            direction="outbound" if direction == "outbound" else None,
         )
         # The file first: it needs nothing but a disk, so a database that is
         # down cannot lose the record of a call.
@@ -260,7 +264,7 @@ async def handle_call(ctx: JobContext) -> None:
 
     ctx.add_shutdown_callback(write_record)
 
-    await session.start(agent=IdentifyCaller(), room=ctx.room)
+    await session.start(agent=IdentifyCaller(direction), room=ctx.room)
 
 
 if __name__ == "__main__":
