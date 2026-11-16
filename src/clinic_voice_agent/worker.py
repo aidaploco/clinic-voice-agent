@@ -14,10 +14,12 @@ from datetime import datetime
 from typing import Any
 
 from dotenv import load_dotenv
+from livekit import rtc
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
 from livekit.plugins import silero
 
 from clinic_voice_agent import limits, live, records, review, store, voice
+from clinic_voice_agent.allowlist import admit
 from clinic_voice_agent.clinic import demo_clinic
 from clinic_voice_agent.consent import ModelConsent
 from clinic_voice_agent.flow import CallState, IdentifyCaller
@@ -32,6 +34,9 @@ load_dotenv()
 logger = logging.getLogger("clinic_voice_agent.worker")
 
 WORKER_NAME = get_settings().agent_name
+
+# How long to wait for someone to be in the room before giving up on the call.
+JOIN_SECONDS = 30
 
 # How long the post-call review may take before the record is written without it.
 REVIEW_SECONDS = 20
@@ -74,7 +79,6 @@ async def turn_away(ctx: JobContext, settings: Any) -> None:
     """The day's cap is reached: say so, hang up. No record is written, so a refusal is no call."""
     logger.warning("daily call cap of %s reached; turning the call away", settings.daily_call_cap)
     session = AgentSession(tts=voice.build_tts(settings))
-    await ctx.connect()
     await session.start(
         agent=Agent(instructions="You only announce that calls are closed."), room=ctx.room
     )
@@ -87,6 +91,25 @@ async def handle_call(ctx: JobContext) -> None:
     settings = get_settings()
     if missing := settings.missing_voice_keys():
         raise RuntimeError(f"cannot take calls: {', '.join(missing)} not set (see .env.example)")
+
+    # Join the room first: who is calling is only known once they are in it. A phone caller is
+    # checked against the allowlist before anything is spent on them (no speech, no model, no
+    # record), and a call nobody joins is not waited for forever.
+    await ctx.connect()
+    try:
+        caller = await asyncio.wait_for(ctx.wait_for_participant(), timeout=JOIN_SECONDS)
+    except TimeoutError:
+        logger.warning("nobody joined the room within %s seconds", JOIN_SECONDS)
+        return
+    admission = admit(
+        is_phone=caller.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP,
+        caller_number=caller.attributes.get("sip.phoneNumber"),
+        allowed=settings.allowed_set,
+    )
+    if not admission.allowed:
+        logger.warning("turning away a call: %s (%s)", admission.reason, admission.caller)
+        ctx.delete_room()
+        return
 
     started = datetime.now()
     if limits.calls_today(settings.recordings_dir, started) >= settings.daily_call_cap:
@@ -177,7 +200,6 @@ async def handle_call(ctx: JobContext) -> None:
 
     ctx.add_shutdown_callback(write_record)
 
-    await ctx.connect()
     await session.start(agent=IdentifyCaller(), room=ctx.room)
 
 

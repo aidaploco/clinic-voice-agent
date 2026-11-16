@@ -12,3 +12,6 @@ evals/reports/
 # the browser page
 web/node_modules/
 web/dist/
+
+# a saved copy of the phone line rule (holds phone numbers)
+.inbound-rule-backup.json

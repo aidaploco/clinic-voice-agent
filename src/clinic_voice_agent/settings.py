@@ -6,6 +6,8 @@ from pathlib import Path
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from clinic_voice_agent.allowlist import parse_allowed
+
 # The project folder (the one holding pyproject.toml). Defaults are anchored here, not to the
 # folder a command happens to be run from: started from `web/`, a relative "web/dist" is
 # looked for in `web/web/dist`, and a worker and a server started in different folders would
@@ -51,6 +53,10 @@ class Settings(BaseSettings):
     # deployment (a container, say) on the same LiveKit project without sharing calls.
     agent_name: str = "clinic-receptionist"
 
+    # Phone numbers (E.164, comma-separated) that may call in. Empty admits no phone caller. A
+    # malformed value stops the worker at startup instead of being quietly ignored.
+    allowed_numbers: str = ""
+
     # What a call may cost. A call is ended at the time limit; once the day's cap of calls
     # is reached, further callers are told so and hung up on.
     max_call_seconds: int = 300
@@ -74,6 +80,16 @@ class Settings(BaseSettings):
     def _blank_means_unset(cls, value):
         # `KEY=` in a .env file is "not set", never "the empty key".
         return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("allowed_numbers")
+    @classmethod
+    def _numbers_are_well_formed(cls, value: str) -> str:
+        parse_allowed(value)
+        return value
+
+    @property
+    def allowed_set(self) -> frozenset[str]:
+        return parse_allowed(self.allowed_numbers)
 
     def missing_voice_keys(self) -> list[str]:
         """The keys hearing and thinking cannot do without. Speaking is checked separately."""

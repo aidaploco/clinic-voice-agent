@@ -50,6 +50,18 @@ uv run python -m clinic_voice_agent.web              # terminal 2: the page, at 
 
 It needs `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` in `.env` as well. It starts a call with a button, and shows the live transcript, every request the gateway allowed or refused as it happens, and the review once the call ends. For development, `cd web && npm run dev` serves the page on http://127.0.0.1:5173 and forwards its requests to the Python server. It is meant to be run on your own machine: the server answers on `127.0.0.1` only, because a public address would let strangers spend your speech and model credit. A call ends after `MAX_CALL_SECONDS` (300), and once `DAILY_CALL_CAP` calls (25) have been made in a day callers are told so and hung up on.
 
+### By phone
+
+Phone calls arrive at a Twilio number, go to LiveKit's SIP service, and a dispatch rule turns each into a room. [ADR-0007](docs/adr/0007-inbound-calls.md) explains the design: two gates (the trunk's allowed-numbers list, then the worker's own `ALLOWED_NUMBERS`), and limits on length and calls per day. Set `ALLOWED_NUMBERS` in `.env` to your number in E.164 form (`+` then country code and number), then:
+
+```bash
+uv run python scripts/setup_inbound.py            # dry run: shows what would change
+uv run python scripts/setup_inbound.py --apply    # point the line's dispatch rule at Emily (saves the old rule)
+uv run python scripts/setup_inbound.py --revert --apply   # put it back
+```
+
+A dispatch rule names who answers, so changing it changes who is called for that number; the tool saves the rule it replaces and can put it back. The number's origination address at Twilio must point at your LiveKit project's SIP address (your Twilio account; nothing here changes it).
+
 Each call writes a record to `recordings/`: the transcript, every request the gateway allowed or refused, the review of the call, the appointment afterwards, why the call ended, any service errors, and how long each reply took.
 
 To store calls in Postgres as well, start the local database and set `DATABASE_URL` (see `.env.example`). The worker creates the tables when it starts.

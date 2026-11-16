@@ -60,7 +60,7 @@ In this order, each a set of reviewable changes:
 
 Acceptance: a call completed from the page; inbound and outbound calls on a real handset; a call from a number that is not allowed is turned away.
 
-Status: the page is built and merged (VERIFICATION O17, O20, O21). A container image and `docker compose up` for the worker and the page ([ADR-0006](adr/0006-containers.md)) were pulled forward from Phase 7. Next: inbound calls.
+Status: the page is built and merged (VERIFICATION O17, O20, O21). A container image and `docker compose up` for the worker and the page ([ADR-0006](adr/0006-containers.md)) were pulled forward from Phase 7. Inbound calls ([ADR-0007](adr/0007-inbound-calls.md)): the caller allowlist, the worker's gate and the tool that points the phone line at Emily are built and tested; pointing the live line at her and a real call from the owner's phone are next.
 
 ### Phase 5: four languages
 
