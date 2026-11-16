@@ -80,4 +80,6 @@ Status: done as an experiment, 2026-11-16 ([ADR-0012](adr/0012-speech-to-speech.
 
 ### Phase 7: packaging
 
-A container for the worker, a short deployment guide, traces with personal data filtered out, and a README a stranger can follow.
+A README a stranger can follow, with pictures; traces with personal data filtered out; a check that nothing private is in the repository. A container for the worker already existed. A deployment guide was dropped: the phone path is the owner's alone and the browser path runs from `docker compose`, so there is nothing else to deploy.
+
+Status: done, 2026-11-16 ([ADR-0013](adr/0013-traces-without-personal-data.md), VERIFICATION O52 and O53). Left before the repository is made public: the owner's go-ahead, a rerun of the audit (with the private names and addresses given at run time), and replacing the telephone line's SIP credentials, which the history cannot unsay.

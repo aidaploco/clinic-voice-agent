@@ -24,6 +24,11 @@ services:
   worker:
     <<: *app
     command: ["python", "-m", "clinic_voice_agent.worker", "start"]
+    environment:
+      <<: *app-environment
+      # Empty: no traces. `TRACE_ENDPOINT=http://phoenix:6006 docker compose --profile traces up`
+      # sends them, with personal data left out, to the Phoenix below.
+      TRACE_ENDPOINT: ${TRACE_ENDPOINT:-}
 
   web:
     <<: *app
@@ -40,6 +45,17 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Traces of a call, for looking at where its time went. Off unless asked for:
+  #   TRACE_ENDPOINT=http://phoenix:6006 docker compose --profile traces up --build
+  # then http://127.0.0.1:6007. What it receives has had personal data removed (tracing.py).
+  phoenix:
+    profiles: ["traces"]
+    image: arizephoenix/phoenix:version-16.0.0
+    ports:
+      - "127.0.0.1:6007:6006"
+    volumes:
+      - phoenix-data:/mnt/data
 
   db:
     image: postgres:17-alpine
@@ -60,3 +76,4 @@ services:
 
 volumes:
   clinic-db:
+  phoenix-data:

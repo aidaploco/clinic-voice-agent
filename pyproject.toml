@@ -13,6 +13,9 @@ dependencies = [
     "pydantic>=2.10",
     "pydantic-settings>=2.13.1",
     "python-dotenv>=1.2.4",
+    # Traces (tracing.py). The agent framework brings them; imported here, so declared here.
+    "opentelemetry-sdk>=1.30",
+    "opentelemetry-exporter-otlp-proto-http>=1.30",
 ]
 
 [dependency-groups]
@@ -47,6 +50,7 @@ select = ["E", "F", "I", "B", "UP", "S", "ASYNC"]
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "S105", "S106", "S603", "S607"]
 "scripts/*" = ["ASYNC109", "ASYNC240"]
+"evals/pii_audit.py" = ["S603", "S607"]
 # What the receptionist says is sentences, long by nature; wrapping them would only hide them.
 "src/clinic_voice_agent/locales.py" = ["E501"]
 "tests/unit/test_locales.py" = ["E501"]

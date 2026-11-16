@@ -14,7 +14,7 @@ E164 = re.compile(r"^\+[1-9]\d{6,14}$")
 
 
 def normalise(number: str) -> str:
-    """Spaces, dashes, dots and brackets removed: "+52 (55) 1234-5678" -> "+525512345678"."""
+    """Spaces, dashes, dots and brackets removed: "+1 (415) 555-0123" -> "+14155550123"."""
     return re.sub(r"[\s\-.()]", "", number)
 
 

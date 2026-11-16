@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     deepgram_tts_model: str = "aura-2-thalia-en"
     openai_tts_voice: str = "coral"
     bosnian_tts_voice: str = "coral"  # chosen by listening to scripts/bosnian_voices.py
+    # Traces of a call, with personal data left out (tracing.py). Neither set: no tracing.
+    trace_endpoint: str | None = None
+    trace_file: Path | None = None
     elevenlabs_voice_id: str = "cgSgspJ2msm6clMCkdW9"
 
     # Where each call's record (transcript and what the tools did) is written.

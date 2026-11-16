@@ -18,7 +18,7 @@ from livekit import rtc
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
 from livekit.plugins import silero
 
-from clinic_voice_agent import limits, live, records, review, store, voice
+from clinic_voice_agent import limits, live, records, review, store, tracing, voice
 from clinic_voice_agent.allowlist import admit, admit_dialled
 from clinic_voice_agent.clinic import demo_clinic
 from clinic_voice_agent.consent import ModelConsent
@@ -106,6 +106,8 @@ async def handle_call(ctx: JobContext) -> None:
     settings = get_settings()
     if missing := settings.missing_voice_keys():
         raise RuntimeError(f"cannot take calls: {', '.join(missing)} not set (see .env.example)")
+
+    tracing.setup(settings.trace_endpoint, settings.trace_file)
 
     # Join the room first: who is calling is only known once they are in it. A phone caller is
     # checked against the allowlist before anything is spent on them (no speech, no model, no
