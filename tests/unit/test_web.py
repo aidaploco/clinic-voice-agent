@@ -128,3 +128,13 @@ async def test_the_built_page_is_served_and_a_missing_build_says_how_to_make_one
         assert missing.status == 503 and "npm run build" in await missing.text()
     finally:
         await c.close()
+
+
+def test_defaults_do_not_depend_on_the_folder_a_command_is_run_from(tmp_path, monkeypatch):
+    from clinic_voice_agent.settings import PROJECT_ROOT
+
+    monkeypatch.chdir(tmp_path)  # nowhere near the project, as when started from web/
+    settings = Settings(_env_file=None)
+    assert settings.web_dist == PROJECT_ROOT / "web" / "dist"
+    assert settings.recordings_dir == PROJECT_ROOT / "recordings"
+    assert (PROJECT_ROOT / "pyproject.toml").is_file()

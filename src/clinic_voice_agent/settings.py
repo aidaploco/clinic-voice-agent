@@ -6,9 +6,15 @@ from pathlib import Path
 from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# The project folder (the one holding pyproject.toml). Defaults are anchored here, not to the
+# folder a command happens to be run from: started from `web/`, a relative "web/dist" is
+# looked for in `web/web/dist`, and a worker and a server started in different folders would
+# write and read call records in different places.
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=PROJECT_ROOT / ".env", extra="ignore")
 
     # The three services of the voice: hearing, thinking, speaking.
     deepgram_api_key: SecretStr | None = None
@@ -27,7 +33,7 @@ class Settings(BaseSettings):
     elevenlabs_voice_id: str = "cgSgspJ2msm6clMCkdW9"
 
     # Where each call's record (transcript and what the tools did) is written.
-    recordings_dir: Path = Path("recordings")
+    recordings_dir: Path = PROJECT_ROOT / "recordings"
 
     # The LiveKit project calls run in. The framework reads the same three from the environment.
     livekit_url: str | None = None
@@ -35,7 +41,7 @@ class Settings(BaseSettings):
     livekit_api_secret: SecretStr | None = None
 
     # Where the built browser page is (`npm run build` in web/ writes it).
-    web_dist: Path = Path("web/dist")
+    web_dist: Path = PROJECT_ROOT / "web" / "dist"
     web_port: int = 8765
 
     # What a call may cost. A call is ended at the time limit; once the day's cap of calls
