@@ -1,0 +1,18 @@
+# Nothing secret, local or bulky goes into the build.
+.env
+.env.*
+!.env.example
+.git
+.github
+.venv
+.vscode
+.pytest_cache
+.ruff_cache
+__pycache__
+*.pyc
+recordings
+evals/reports
+web/node_modules
+web/dist
+docs
+tests

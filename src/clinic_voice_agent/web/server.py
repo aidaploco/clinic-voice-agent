@@ -1,8 +1,9 @@
 """A local server for the browser page: serves it, mints call tokens, returns finished records.
 
-Run it with `uv run python -m clinic_voice_agent.web`. It listens on 127.0.0.1 only and
-refuses requests that do not name a local host, so a web page elsewhere cannot use it to
-start calls on the owner's account.
+Run it with `uv run python -m clinic_voice_agent.web`. Outside a container it listens on
+127.0.0.1 only; in one, compose publishes its port on the host's 127.0.0.1 only. It refuses
+requests that do not name a local host, so a web page elsewhere cannot use it to start calls
+on the owner's account.
 """
 
 import asyncio
@@ -17,7 +18,6 @@ from livekit import api
 
 from clinic_voice_agent.limits import calls_today
 from clinic_voice_agent.settings import Settings, get_settings
-from clinic_voice_agent.worker import WORKER_NAME
 
 # Long enough to join, short enough that a leaked token is useless by the time it matters.
 TOKEN_LIFETIME = timedelta(minutes=5)
@@ -56,7 +56,7 @@ def mint_token(settings: Settings, room: str, identity: str) -> str:
             )
         )
         .with_room_config(
-            api.RoomConfiguration(agents=[api.RoomAgentDispatch(agent_name=WORKER_NAME)])
+            api.RoomConfiguration(agents=[api.RoomAgentDispatch(agent_name=settings.agent_name)])
         )
         .to_jwt()
     )
@@ -135,4 +135,4 @@ def make_app(settings: Settings | None = None) -> web.Application:
 
 def main() -> None:
     settings = get_settings()
-    web.run_app(make_app(settings), host="127.0.0.1", port=settings.web_port)
+    web.run_app(make_app(settings), host=settings.web_host, port=settings.web_port)

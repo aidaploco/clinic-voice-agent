@@ -1,8 +1,46 @@
-# A local Postgres for call records. Nothing here costs money or runs in a cloud.
+# Everything runs on this machine; nothing here costs money or runs in a cloud (the speech and
+# model services you call are the only things that are billed).
 #
-#   docker compose up -d db      start
+#   docker compose up -d db      just the database, for running the worker and page natively
+#   docker compose up --build    the database, the worker and the page at http://127.0.0.1:8765
 #   docker compose down          stop (add -v to delete the data too)
+#
+# `worker` and `web` need the keys in `.env` (copy `.env.example`). They are passed in as
+# environment variables, never built into the image.
+x-app: &app
+  image: clinic-voice-agent:local
+  build: .
+  env_file: .env
+  environment: &app-environment
+    # The host's .env points at the database on 127.0.0.1; from inside the network it is `db`.
+    DATABASE_URL: postgresql://clinic:clinic-local-only@db:5432/clinic
+  volumes:
+    - ./recordings:/app/recordings
+  depends_on:
+    db:
+      condition: service_healthy
+
 services:
+  worker:
+    <<: *app
+    command: ["python", "-m", "clinic_voice_agent.worker", "start"]
+
+  web:
+    <<: *app
+    command: ["python", "-m", "clinic_voice_agent.web"]
+    environment:
+      <<: *app-environment
+      # Inside the container the server listens on all of its addresses; the port is published
+      # below on this machine's 127.0.0.1 only, so nobody else on the network can reach it.
+      WEB_HOST: 0.0.0.0
+    ports:
+      - "127.0.0.1:${WEB_PORT:-8765}:8765"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8765/')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   db:
     image: postgres:17-alpine
     environment:

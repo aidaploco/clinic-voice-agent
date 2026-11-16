@@ -31,7 +31,7 @@ load_dotenv()
 
 logger = logging.getLogger("clinic_voice_agent.worker")
 
-WORKER_NAME = "clinic-receptionist"
+WORKER_NAME = get_settings().agent_name
 
 # How long the post-call review may take before the record is written without it.
 REVIEW_SECONDS = 20

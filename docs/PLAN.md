@@ -60,7 +60,7 @@ In this order, each a set of reviewable changes:
 
 Acceptance: a call completed from the page; inbound and outbound calls on a real handset; a call from a number that is not allowed is turned away.
 
-Status: started (the ADR and the plan).
+Status: the page is built and merged (VERIFICATION O17, O20, O21). A container image and `docker compose up` for the worker and the page ([ADR-0006](adr/0006-containers.md)) were pulled forward from Phase 7. Next: inbound calls.
 
 ### Phase 5: four languages
 

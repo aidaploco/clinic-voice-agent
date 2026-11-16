@@ -102,6 +102,25 @@ jobs:
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=high
 
+  # The container image: builds, and is checked for the things that must not regress. It runs
+  # as a normal user, holds no .env, has the built page, imports both entry points without
+  # any keys, and its page server answers. No keys are given to it and nothing is pushed.
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: build
+        run: docker build -t clinic-voice-agent:ci .
+      - name: checks
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint sh clinic-voice-agent:ci -c 'test "$(id -u)" != 0 && test ! -e /app/.env && test -f /app/web/dist/index.html'
+          docker run --rm --entrypoint python clinic-voice-agent:ci -c 'import clinic_voice_agent.worker, clinic_voice_agent.web.server'
+          docker run -d --name page -p 127.0.0.1:8765:8765 -e WEB_HOST=0.0.0.0 --entrypoint python clinic-voice-agent:ci -m clinic_voice_agent.web
+          for _ in $(seq 1 20); do curl -fsS http://127.0.0.1:8765/ >/dev/null && break; sleep 1; done
+          curl -fsS http://127.0.0.1:8765/ | grep -q "Quillbrook"
+          docker rm -f page
+
   # Whole conversations against the real model, scripted and simulated callers,
   # graded on what the gateway and the clinic's records show. Model-graded and
   # therefore not perfectly repeatable, so the gate is a rule, not equality:
@@ -134,7 +153,7 @@ jobs:
   # failed job would make this one skip, and a skipped required check can read
   # as passed. Add every new job to `needs`; a unit test fails if one is missing.
   ci-success:
-    needs: [gitleaks, actionlint, test, web, evals]
+    needs: [gitleaks, actionlint, test, web, image, evals]
     if: always()
     runs-on: ubuntu-latest
     steps:

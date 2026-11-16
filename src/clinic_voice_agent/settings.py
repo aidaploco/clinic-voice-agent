@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     # Where the built browser page is (`npm run build` in web/ writes it).
     web_dist: Path = PROJECT_ROOT / "web" / "dist"
     web_port: int = 8765
+    # 127.0.0.1 unless the server runs in a container, where it must listen on all of the
+    # container's addresses and the host publishes the port on 127.0.0.1 only (compose.yaml).
+    web_host: str = "127.0.0.1"
+
+    # The name the worker registers under and the page dispatches to. Change it to run a second
+    # deployment (a container, say) on the same LiveKit project without sharing calls.
+    agent_name: str = "clinic-receptionist"
 
     # What a call may cost. A call is ended at the time limit; once the day's cap of calls
     # is reached, further callers are told so and hung up on.

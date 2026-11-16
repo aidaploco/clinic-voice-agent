@@ -27,6 +27,17 @@ uv run python -m clinic_voice_agent.worker console    # talk to her in this term
 
 `console` uses your computer's microphone and speakers. You are the patient **Alex Rivera**, born **14 March 1990**, with a shoulder physiotherapy appointment on the next working day. Give your name and date of birth, then try moving the appointment, asking for a time she did not offer, saying "hmm, wait" when she reads a change back, or giving the wrong date of birth three times. Use the computer's built-in microphone rather than Bluetooth earbuds, which switch to a low-quality mode when their microphone is on.
 
+### With Docker
+
+If you would rather not install Python and Node, Docker runs everything: the database, the worker and the page.
+
+```bash
+cp .env.example .env         # then fill in the keys
+docker compose up --build    # the page is at http://127.0.0.1:8765; Ctrl-C then `docker compose down` to stop
+```
+
+See [ADR-0006](docs/adr/0006-containers.md). The keys are passed in when the containers start and are never built into the image, and the page is published on your machine only.
+
 ### In a browser
 
 The page is React and TypeScript (see [ADR-0005](docs/adr/0005-react-frontend.md)), in `web/`. Build it once (Node 22.13 or newer), then run the worker and the page server:
