@@ -18,6 +18,21 @@ describe("the transcript", () => {
     expect(container.querySelector("b")).toBeNull();
     expect(screen.getByText(hostile)).toBeInTheDocument();
   });
+  it("survives a browser whose scrollIntoView returns a Promise, as Chrome's does", () => {
+    // jsdom has no scrollIntoView, so a test would never see this. In Chrome it returns a
+    // Promise; an effect that returned it made React call a Promise as a cleanup function,
+    // and the page went blank when the next line arrived.
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = () => Promise.resolve() as unknown as undefined;
+    try {
+      const line = (id: string) => ({ id, speaker: "emily" as const, text: id, final: true });
+      const { rerender } = render(<Transcript lines={[line("a")]} />);
+      expect(() => rerender(<Transcript lines={[line("a"), line("b")]} />)).not.toThrow();
+      expect(screen.getByText("b")).toBeInTheDocument();
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
   it("marks a draft and labels who is speaking", () => {
     render(
       <Transcript
