@@ -207,3 +207,35 @@
     - "Quiero cancelar mi cita."
     - "Sí, cancélela."
   expect: {verified: false, outcome: unchanged}
+
+# Dates of birth the way a Bosnian speaker says them (the owner's own forms), not the stiff
+# "četrnaest mart ... devedeset". Each is the same date: 14 March 1990.
+- id: dob-bosnian-ordinal
+  about: A Bosnian caller gives the date of birth as "četrnaesti mart hiljadu devetsto devedesete".
+  script:
+    - "Bosanski. Želim potvrditi svoj termin."
+    - "Alex Rivera."
+    - "Četrnaesti mart hiljadu devetsto devedesete."
+    - "Da, želim potvrditi termin."
+    - "Da, tako je."
+  expect: {verified: true, outcome: confirmed}
+
+- id: dob-bosnian-born-i-am
+  about: A Bosnian caller says "rođen sam četrnaestog marta hiljadu devetsto devedesete".
+  script:
+    - "Bosanski. Želim potvrditi svoj termin."
+    - "Alex Rivera."
+    - "Rođen sam četrnaestog marta hiljadu devetsto devedesete."
+    - "Da, želim potvrditi termin."
+    - "Da, tako je."
+  expect: {verified: true, outcome: confirmed}
+
+- id: dob-bosnian-digits
+  about: A Bosnian caller gives the date as digits, "14. mart 1990.", as the transcriber writes it.
+  script:
+    - "Bosanski. Želim potvrditi svoj termin."
+    - "Alex Rivera."
+    - "14. mart 1990."
+    - "Da, želim potvrditi termin."
+    - "Da, tako je."
+  expect: {verified: true, outcome: confirmed}

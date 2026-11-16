@@ -15,6 +15,7 @@ from livekit.agents import stt as stt_module
 from livekit.agents import tts
 from livekit.plugins import deepgram, elevenlabs, openai
 
+from clinic_voice_agent.prompt_echo import BOSNIAN_HINT, MENU_HINT
 from clinic_voice_agent.settings import Settings
 
 # How long she waits, at most, after the caller goes quiet before deciding they
@@ -91,10 +92,16 @@ def build_llm(settings: Settings):
 
 # The Deepgram voice for each language that has one, and how to word the instruction OpenAI's
 # voice is given. Bosnian has no Deepgram voice, so OpenAI's speaks it.
+# How the OpenAI voice is told to speak. Bosnian was robotic with a plain "calmly and clearly".
+SPEAKING_STYLE = {
+    "bs": (
+        "Speak Bosnian as a native speaker from Sarajevo would, in a warm, relaxed, natural "
+        "conversational tone, like a friendly receptionist chatting on the phone. Not formal, "
+        "not slow, with natural rhythm and intonation. Do not read it like an announcement."
+    ),
+}
 DEEPGRAM_VOICES = {"es": "aura-2-estrella-es", "nl": "aura-2-beatrix-nl"}
 DEEPGRAM_LISTEN = {"en": "en-US", "es": "es-MX", "nl": "nl-NL"}
-MENU_HINT = "The caller chooses a language: English, español, Nederlands or bosanski."
-BOSNIAN_HINT = "Razgovor na bosanskom jeziku. Pišite latinicom."  # left alone it writes Cyrillic
 
 
 class Voices:
@@ -138,10 +145,15 @@ class Voices:
         """The voice for a language, or None to keep the session's own (English)."""
         if language not in self._mouths:
             key = self._settings.openai_api_key.get_secret_value()
-            style = f"Speak {language_name(language)}, calmly and clearly, like a receptionist."
+            style = SPEAKING_STYLE.get(
+                language,
+                f"Speak {language_name(language)}, calmly and clearly, like a receptionist.",
+            )
             backup = openai.TTS(
                 model="gpt-4o-mini-tts",
-                voice=self._settings.openai_tts_voice,
+                voice=self._settings.bosnian_tts_voice
+                if language == "bs"
+                else self._settings.openai_tts_voice,
                 instructions=style,
                 api_key=key,
             )

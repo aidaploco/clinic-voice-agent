@@ -26,10 +26,11 @@ from typing import Any, Literal, Protocol
 from livekit import rtc
 from livekit.agents import Agent, RunContext, ToolError, function_tool
 from livekit.agents.beta.tools import EndCallTool
-from livekit.agents.llm import ToolResult
+from livekit.agents.llm import StopResponse, ToolResult
 
 from clinic_voice_agent.gateway import Gateway, Offer, Refused
 from clinic_voice_agent.locales import AGENT_NAME, CLINIC_NAME, LOCALES, locale_of
+from clinic_voice_agent.prompt_echo import is_echo
 
 # English, as before; kept under these names for the code and tests that use them.
 GREETING = LOCALES["en"].greeting
@@ -60,7 +61,7 @@ def style(language: str) -> str:
     return (
         STYLE + f"\nThe call is in {locale.llm_language}. Everything you say to the caller is in "
         f"{locale.llm_language}, in the same short style. Say times exactly as the tools give "
-        "them, in that language.\n"
+        "them, in that language.\n" + (f"{locale.note}\n" if locale.note else "")
     )
 
 
@@ -140,6 +141,12 @@ def split_opening(opening: str) -> tuple[str, str]:
     return (intro + ".", question) if intro else ("", opening)
 
 
+async def ignore_a_transcribers_echo(new_message: Any) -> None:
+    """Stop the turn if the "caller" only said back the transcriber's own hint (prompt_echo)."""
+    if is_echo(new_message.text_content or ""):
+        raise StopResponse()
+
+
 def _voice_args(state: CallState | None, language: str) -> dict[str, Any]:
     return state.voices.agent_args(language) if state and state.voices else {}
 
@@ -190,6 +197,9 @@ for each thing they ask.
             **(_voice_args(state, language) if switched or question_only else {}),
         )
         self._name = name
+
+    async def on_user_turn_completed(self, turn_ctx: Any, new_message: Any) -> None:
+        await ignore_a_transcribers_echo(new_message)
 
     async def on_enter(self) -> None:
         locale = locale_of(self._language)
@@ -328,6 +338,9 @@ they are coming. Never start a change as the call is ending.
             tools=[_end_call()],
             **_voice_args(state, language),
         )
+
+    async def on_user_turn_completed(self, turn_ctx: Any, new_message: Any) -> None:
+        await ignore_a_transcribers_echo(new_message)
 
     async def on_enter(self) -> None:
         locale = locale_of(self._language)

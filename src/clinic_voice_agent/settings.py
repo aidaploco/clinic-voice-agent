@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     tts_providers: str = "deepgram,openai"
     deepgram_tts_model: str = "aura-2-thalia-en"
     openai_tts_voice: str = "coral"
+    bosnian_tts_voice: str = "coral"  # chosen by listening to scripts/bosnian_voices.py
     elevenlabs_voice_id: str = "cgSgspJ2msm6clMCkdW9"
 
     # Where each call's record (transcript and what the tools did) is written.

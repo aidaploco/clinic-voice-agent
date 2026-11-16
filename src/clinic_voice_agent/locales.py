@@ -199,6 +199,7 @@ class Locale:
     when: Callable[[datetime, datetime, str], str]
     treatment: Callable[[str], str]
     practitioner: Callable[[str], str]
+    note: str = ""  # added to the model's instructions: how this language's callers talk
     keypad: str = ""  # " or press {digit}", in this language: added to the menu line on a phone
 
     def menu_line(self, phone: bool) -> str:
@@ -358,6 +359,14 @@ LOCALES: dict[str, Locale] = {
         ),
         menu="Za bosanski, recite bosanski{keypad}.",
         keypad=" ili pritisnite {digit}",
+        note=(
+            "Bosnian callers say a date of birth in several natural ways, and all of them are "
+            "valid: 'četrnaesti mart hiljadu devetsto devedesete', 'četrnaestog marta ...', "
+            "'rođen sam četrnaestog marta ...', or in digits, '14. mart 1990.'. The year is "
+            "usually said as 'hiljadu devetsto devedesete' (1990), not 'devedeset'. Take the "
+            "day, month and year from any of them, and never ask the caller to say it "
+            "another way. A time of day is said 'pola pet' for half past four."
+        ),
         ask_name="U redu, nastavljamo na bosanskom. Možete li mi reći svoje puno ime, molim vas?",
         ask_dob="Hvala. A vaš datum rođenja, molim vas?",
         time_limit_goodbye="Žao mi je, dostigli smo vremensko ograničenje ovog poziva. Doviđenja.",

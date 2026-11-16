@@ -195,3 +195,23 @@ def test_every_opening_splits_into_an_introduction_and_the_question_it_ends_on()
             intro, question = split_opening(opening)
             assert intro.endswith(".") and question.endswith("?"), opening
             assert f"{intro} {question}" == opening
+
+
+async def test_a_transcribers_echo_of_its_own_hint_is_not_a_turn_for_either_step():
+    from types import SimpleNamespace
+
+    from livekit.agents.llm import StopResponse
+
+    echo = SimpleNamespace(text_content="Razgovor na bosanskom jeziku.")
+    spoken = SimpleNamespace(text_content="Alex Rivera.")
+    call = state()
+    call.gateway.verify_identity("Alex Rivera", date(1990, 3, 14))
+    for step in (IdentifyCaller("inbound", "bs"), HelpWithAppointment(call, "bs")):
+        with pytest.raises(StopResponse):
+            await step.on_user_turn_completed(None, echo)
+        assert await step.on_user_turn_completed(None, spoken) is None
+
+
+def test_the_bosnian_prompt_says_how_dates_of_birth_are_said_and_the_others_do_not():
+    assert "četrnaesti mart" in str(IdentifyCaller("inbound", "bs").instructions)
+    assert "četrnaesti mart" not in str(IdentifyCaller("inbound", "nl").instructions)
