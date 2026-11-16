@@ -224,6 +224,7 @@ name = "clinic-voice-agent"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "livekit-agents", extra = ["deepgram", "elevenlabs", "openai", "silero"] },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
@@ -233,6 +234,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pyjwt" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pyyaml" },
@@ -241,6 +243,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.9" },
     { name = "livekit-agents", extras = ["deepgram", "elevenlabs", "openai", "silero"], specifier = "==1.8.12" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pydantic", specifier = ">=2.10" },
@@ -250,6 +253,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "pyjwt", specifier = ">=2.8" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
     { name = "pyyaml", specifier = ">=6.0" },

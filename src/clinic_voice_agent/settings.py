@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     # Where each call's record (transcript and what the tools did) is written.
     recordings_dir: Path = Path("recordings")
 
+    # The LiveKit project calls run in. The framework reads the same three from the environment.
+    livekit_url: str | None = None
+    livekit_api_key: SecretStr | None = None
+    livekit_api_secret: SecretStr | None = None
+
     # What a call may cost. A call is ended at the time limit; once the day's cap of calls
     # is reached, further callers are told so and hung up on.
     max_call_seconds: int = 300
@@ -39,7 +44,14 @@ class Settings(BaseSettings):
     database_url: SecretStr | None = None
 
     @field_validator(
-        "deepgram_api_key", "openai_api_key", "elevenlabs_api_key", "database_url", mode="before"
+        "deepgram_api_key",
+        "openai_api_key",
+        "elevenlabs_api_key",
+        "database_url",
+        "livekit_url",
+        "livekit_api_key",
+        "livekit_api_secret",
+        mode="before",
     )
     @classmethod
     def _blank_means_unset(cls, value):
