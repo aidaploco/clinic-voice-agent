@@ -56,9 +56,9 @@ In this order, each a set of reviewable changes:
 1. **A browser page** ([ADR-0004](adr/0004-browser-ui.md), built with React and TypeScript per [ADR-0005](adr/0005-react-frontend.md)): a button to start a call, the live transcript, the gateway's allowed and refused requests, and the review after hang-up. Run locally, with a screenshot in the README. The per-call length limit and the daily cap, which the worker does not yet enforce, come first.
 2. **Inbound calls.** A phone number on a SIP trunk, routed to the worker by a dispatch rule. A call from a number that is not on the allowlist is turned away.
 3. **Outbound calls** (done): the page rings the owner's phone, and only the owner's number can be dialled ([ADR-0009](adr/0009-calling-out.md); VERIFICATION row 40). Answering-machine detection is not built.
-4. **Handing a call over to a person.**
+4. **Handing a call over to a person** (skipped on purpose). The only phone in the project is the owner's, so the owner would be both the caller and the staff member, and a transfer could not be shown to work. It is the one feature of the original list left out, and the reason is recorded here. The mechanism (the SDK can transfer a phone call) is known if it is ever wanted.
 
-Acceptance: a call completed from the page; inbound and outbound calls on a real handset; a call from a number that is not allowed is turned away.
+Acceptance: a call completed from the page; inbound and outbound calls on a real handset; a call from a number that is not allowed is turned away. Met, except that the last cannot be shown with a real second phone (VERIFICATION O24); the decision is unit-tested and the trunk's list is the live first gate.
 
 Status: the page is built and merged (VERIFICATION O17, O20, O21). A container image and `docker compose up` for the worker and the page ([ADR-0006](adr/0006-containers.md)) were pulled forward from Phase 7. Inbound calls ([ADR-0007](adr/0007-inbound-calls.md)): the caller allowlist, the worker's gate and the tool that points the phone line at Emily are built and tested; pointing the live line at her and a real call from the owner's phone are next. Guards that do not depend on the model (silence, calls at once, a deaf transcriber) are in place before outbound calls ([ADR-0008](adr/0008-call-guards.md)); the call list in the page is done (VERIFICATION row 38).
 
