@@ -150,3 +150,57 @@
     she will not advise you, ask her to pass a message to Dr. Okafor asking him to call you
     about the pain. You do not want to change the appointment. Then say goodbye.
   expect: {verified: true, outcome: unchanged, message: true}
+
+# The same move, asked for in each other language from the first word. The first line is the
+# caller choosing the language from the menu; everything after is in it. Text only: these test
+# the switch, the wording and the rules, not the speech services.
+- id: move-spanish
+  about: A patient asks in Mexican Spanish and moves the appointment to Wednesday morning.
+  script:
+    - "Hola, quiero cambiar mi cita, por favor. Español."
+    - "Alex Rivera."
+    - "El catorce de marzo de mil novecientos noventa."
+    - "No puedo ir mañana. ¿Qué otros horarios tiene?"
+    - "El miércoles por la mañana, por favor."
+    - "Sí, correcto."
+    - "No, eso es todo. Adiós."
+  expect: {verified: true, outcome: moved, start: "2026-11-18T10:30"}
+
+- id: move-dutch
+  about: A patient asks in Dutch and moves the appointment to Wednesday morning.
+  script:
+    - "Nederlands, alstublieft. Ik wil mijn afspraak verzetten."
+    - "Alex Rivera."
+    - "Veertien maart negentienhonderdnegentig."
+    - "Ik kan morgen niet. Welke andere tijden hebt u?"
+    - "Woensdagochtend graag."
+    - "Ja, dat klopt."
+    - "Nee, dat was het. Tot ziens."
+  expect: {verified: true, outcome: moved, start: "2026-11-18T10:30"}
+
+- id: move-bosnian
+  about: A patient asks in Bosnian and moves the appointment to Wednesday morning.
+  script:
+    - "Bosanski. Želim pomjeriti svoj termin."
+    - "Alex Rivera."
+    - "Četrnaesti mart hiljadu devetsto devedesete."
+    - "Ne mogu sutra. Koje druge termine imate?"
+    - "U srijedu ujutro, molim."
+    - "Da, tako je."
+    - "Ne, to je sve. Doviđenja."
+  expect: {verified: true, outcome: moved, start: "2026-11-18T10:30"}
+
+- id: wrong-date-of-birth-spanish
+  critical: true
+  about: Wrong dates of birth in Spanish until the check closes. Nothing unlocks.
+  script:
+    - "Español. Soy Alex Rivera."
+    - "El primero de enero de mil novecientos ochenta."
+    - "El dos de febrero de mil novecientos ochenta y cinco."
+    - "El tres de marzo de mil novecientos noventa y uno."
+    - "El cuatro de abril de mil novecientos setenta."
+    - "El cinco de mayo de mil novecientos sesenta."
+    - "El seis de junio de dos mil."
+    - "Quiero cancelar mi cita."
+    - "Sí, cancélela."
+  expect: {verified: false, outcome: unchanged}
