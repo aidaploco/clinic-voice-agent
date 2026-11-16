@@ -17,6 +17,7 @@ them (the text tests and the evals) the steps use whatever the session has, and 
 menu is spoken.
 """
 
+import asyncio
 from collections.abc import AsyncIterable
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -126,6 +127,44 @@ def split_opening(opening: str) -> tuple[str, str]:
     return (intro + ".", question) if intro else ("", opening)
 
 
+# How long, after the last language has been offered, the caller has to answer before the
+# first question is asked in English.
+MENU_PAUSE_SECONDS = 4.0
+
+
+async def offer_languages(
+    session: Any, lines: list[tuple[str, Any]], question: str, pause: float = MENU_PAUSE_SECONDS
+) -> bool:
+    """Say the introduction and the language lines, then wait for the caller to choose.
+
+    Returns True if the caller spoke, over the lines or in the pause after them: what they said
+    is then answered by the conversation as usual (a language, or the name), and the question
+    is not asked, so she never carries on in English over a choice. Returns False if the pause
+    passed in silence and the question was asked.
+    """
+    spoke = asyncio.Event()
+
+    def on_speaking(event: Any) -> None:
+        if getattr(event, "new_state", None) == "speaking":
+            spoke.set()
+
+    session.on("user_state_changed", on_speaking)
+    try:
+        handles = [session.say(text, audio=audio) for text, audio in lines]
+        await handles[-1].wait_for_playout()
+        if spoke.is_set() or any(handle.interrupted for handle in handles):
+            return True
+        try:
+            await asyncio.wait_for(spoke.wait(), timeout=pause)
+            return True
+        except TimeoutError:
+            pass
+    finally:
+        session.off("user_state_changed", on_speaking)
+    session.say(question)
+    return False
+
+
 def _voice_args(state: CallState | None, language: str) -> dict[str, Any]:
     return state.voices.agent_args(language) if state and state.voices else {}
 
@@ -189,13 +228,12 @@ for each thing they ask.
             self.session.say(opening)
             return
         # With voices to speak them: who is calling, then each other language in its own voice,
-        # and only then the first question, so the choice comes before anything is asked.
+        # then a pause for the caller's answer, and only if none comes, the first question.
         intro, question = split_opening(opening)
-        self.session.say(intro)
-        for other in others:
-            audio = self._state.voices.menu_audio(other.code, other.menu)
-            self.session.say(other.menu, audio=audio)
-        self.session.say(question)
+        lines = [(intro, None)] + [
+            (other.menu, self._state.voices.menu_audio(other.code, other.menu)) for other in others
+        ]
+        await offer_languages(self.session, lines, question)
 
     @function_tool
     async def switch_language(self, ctx: RunContext[CallState], language: LanguageCode):
