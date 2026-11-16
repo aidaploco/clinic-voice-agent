@@ -24,6 +24,12 @@ services:
   worker:
     <<: *app
     command: ["python", "-m", "clinic_voice_agent.worker", "start"]
+    environment:
+      <<: *app-environment
+      # Phase 6: `PIPELINE=realtime docker compose up --build` runs one speech-to-speech model in
+      # place of the three services (English only, no language menu). The default is the chain.
+      PIPELINE: ${PIPELINE:-chain}
+      REALTIME_WAITS: ${REALTIME_WAITS:-false}
 
   web:
     <<: *app
