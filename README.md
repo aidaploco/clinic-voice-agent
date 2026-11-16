@@ -32,6 +32,7 @@ flowchart TB
 - **Limits that do not depend on the model.** A call has a length limit and ends after a silence; a worker runs a set number at once; there is a daily cap; and two stretches of speech in a row with no words back end the call ([ADR-0008](docs/adr/0008-call-guards.md)).
 - **Phone.** Inbound calls arrive through a Twilio number and LiveKit SIP, behind two allowlists, and fail closed ([ADR-0007](docs/adr/0007-inbound-calls.md)). For outbound, a button in the page rings the owner's phone, but only after Emily is already in the room, so a missing worker means nothing is dialled ([ADR-0009](docs/adr/0009-calling-out.md)).
 - **The page.** React and TypeScript ([ADR-0005](docs/adr/0005-react-frontend.md)): the live transcript, the gateway's decisions as they happen, the review, and the list of earlier calls, phone calls included.
+- **Speech to speech, tried and not adopted.** One speech-to-speech model in place of the three services was no faster, about four times the cost, and no better to listen to, so the chain stays. The experiment is on the branch `phase-6-realtime` ([ADR-0012](docs/adr/0012-speech-to-speech.md)).
 - **Stack.** LiveKit Agents (pinned), Deepgram for hearing and as the first-choice voice, OpenAI for the model and as the backup voice, Postgres for records, Docker for running it all.
 
 ## What has been measured
@@ -158,7 +159,7 @@ Dockerfile, compose.yaml
 
 ## Documents
 
-[PLAN](docs/PLAN.md) has the phases and what is done. [VERIFICATION](docs/VERIFICATION.md) records what has been proven and what is assumed. The decisions are in [docs/adr](docs/adr): the use case, the architecture, how the agent is kept from doing the wrong thing, the page, containers, taking calls, the guards, calling out, speech by language, and languages in a call.
+[PLAN](docs/PLAN.md) has the phases and what is done. [VERIFICATION](docs/VERIFICATION.md) records what has been proven and what is assumed. The decisions are in [docs/adr](docs/adr): the use case, the architecture, how the agent is kept from doing the wrong thing, the page, containers, taking calls, the guards, calling out, speech by language, and languages in a call, and speech to speech.
 
 ## License
 

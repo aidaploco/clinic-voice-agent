@@ -68,13 +68,15 @@ English, Mexican Spanish, Dutch and Bosnian. Language chosen at the start of the
 
 Known risk: Bosnian. The plugin's own language list does not mention it, but Deepgram's model list does (VERIFICATION row, ADR-0010), so the risk is smaller than first thought and has changed shape: Bosnian transcription has two imperfect candidates, and Bosnian speech has only one voice. Its quality has to be judged by a native speaker.
 
-Status: started. The speech services were measured per language ([ADR-0010](adr/0010-speech-by-language.md)) and the sentences reviewed by the owner. Deepgram serves English, Spanish and Dutch; for Bosnian, OpenAI's transcriber (with a Latin-script hint) and voice were chosen on synthetic speech and still need a real voice. Built since ([ADR-0011](adr/0011-languages-in-a-call.md)): a spoken menu, a `switch_language` tool, per-language prompts, greetings and spoken times, and scripted text evals in each language. The menu was redesigned after the first live tries failed and is now a step decided in code, with a keypad and a timeline in every record. Still to do: the owner's calls in each language by voice and by key, her review of the draft lines (including the keypad cues and the length of the menu), yes-check and review cases in other languages, and the Bosnian voice on a real phone line.
+Status: done, 2026-11-16 ([ADR-0010](adr/0010-speech-by-language.md), [ADR-0011](adr/0011-languages-in-a-call.md)). Four languages, a language menu decided in code (spoken name or keypad, English if no answer), per-language prompts, greetings and spoken times, a timeline in every call record, and scripted evals in each language. Tried by the owner on a live call in Bosnian and in Dutch. Known gaps, not blocking: Spanish has not been tried by a person on a phone line; the other-language wording has had only partial owner review; there is no Bosnian scenario for "No, I want to cancel"; the menu takes about 15 seconds.
 
 ### Phase 6: one model instead of three
 
 The same receptionist, tools and flow on a speech-to-speech model, which hears and speaks directly instead of going through text. Compared with the three-service chain on latency, task completion and cost.
 
 Acceptance: a written comparison with numbers, and a recommendation.
+
+Status: done as an experiment, 2026-11-16 ([ADR-0012](adr/0012-speech-to-speech.md)). Recommendation: keep the chain. Measured on a handful of calls only; the owner listened and preferred the chain. The code is on the branch `phase-6-realtime`, not in `main`.
 
 ### Phase 7: packaging
 
