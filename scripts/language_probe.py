@@ -131,6 +131,8 @@ async def hear_openai(
     form.add_field("file", audio, filename="line.wav", content_type="audio/wav")
     form.add_field("model", "gpt-4o-transcribe")
     form.add_field("language", lang)
+    if lang in HINTS:
+        form.add_field("prompt", HINTS[lang])
     async with http.post(
         "https://api.openai.com/v1/audio/transcriptions",
         headers={"Authorization": f"Bearer {key}"},
@@ -139,6 +141,10 @@ async def hear_openai(
         r.raise_for_status()
         return (await r.json())["text"]
 
+
+# A short text the transcriber is given as context. For Bosnian it says which script to write: left
+# alone, it answers some sentences in Serbian Cyrillic.
+HINTS = {"bs": "Razgovor na bosanskom jeziku. Pišite latinicom."}
 
 VOICES = {"deepgram": speak_deepgram, "openai": speak_openai, "macos": speak_macos}
 EARS = {"deepgram": hear_deepgram, "openai": hear_openai}

@@ -68,9 +68,7 @@ English, Mexican Spanish, Dutch and Bosnian. Language chosen at the start of the
 
 Known risk: Bosnian. The plugin's own language list does not mention it, but Deepgram's model list does (VERIFICATION row, ADR-0010), so the risk is smaller than first thought and has changed shape: Bosnian transcription has two imperfect candidates, and Bosnian speech has only one voice. Its quality has to be judged by a native speaker.
 
-Status: started. The speech services were measured per language ([ADR-0010](adr/0010-speech-by-language.md)); the Spanish, Dutch and Bosnian sentences are drafts awaiting review; Bosnian is not decided. Still to do: choosing between the Bosnian candidates, choosing the language at the start of a call and switching it during one, prompts and the greeting in each language, and the evals in each language.
-
-Acceptance: the evals pass in all four languages, with per-language results published.
+Status: started. The speech services were measured per language ([ADR-0010](adr/0010-speech-by-language.md)) and the sentences reviewed by the owner. Deepgram serves English, Spanish and Dutch; for Bosnian, OpenAI's transcriber (with a Latin-script hint) and voice were chosen on synthetic speech and still need a real voice. Still to do: choosing the language at the start of a call and switching it during one, per-language prompts, greetings and spoken times, and the evals in each language.
 
 ### Phase 6: one model instead of three
 

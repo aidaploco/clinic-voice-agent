@@ -1,8 +1,9 @@
 # The receptionist's lines in each language, for measuring speech services (scripts/language_probe.py)
 # and, later, for the conversations in each language.
 #
-# Spanish, Dutch and Bosnian are drafts written for measurement. A native speaker has not yet
-# reviewed them: `reviewed: false` until one has. Times are written out in words, as the voice is
+# Spanish, Dutch and Bosnian were drafted for measurement and reviewed by the owner, a native
+# speaker of all three, on 2026-11-16. One correction: in Bosnian, half hours are "pola" the next
+# hour ("pola jedanaest" is 10:30), not "deset i trideset". Times are written out in words, as the voice is
 # given them (no digit-and-colon times), and there are no numerals, so a transcript can be compared
 # word for word. `numeric` lists the sentences (by position, from 0) that carry numbers. A transcript
 # may write "nine" or 9, "half elf" or 10:30, and all are right, so those are shown as heard for a
@@ -20,7 +21,7 @@ en:
     - "Alex Rivera, born the fourteenth of March, nineteen ninety."
     - "I'm sorry, I can't hear you properly. Please try calling again. Goodbye."
 es:
-  reviewed: false
+  reviewed: true
   numeric: [3, 4, 6]
   sentences:
     - "Gracias por llamar a Quillbrook Physio. Soy Emily, la recepcionista automática de la clínica."
@@ -32,7 +33,7 @@ es:
     - "Alex Rivera, nacido el catorce de marzo de mil novecientos noventa."
     - "Lo siento, no logro escucharle bien. Por favor, intente llamar de nuevo. Adiós."
 nl:
-  reviewed: false
+  reviewed: true
   numeric: [3, 4, 6]
   sentences:
     - "Bedankt voor het bellen naar Quillbrook Physio. U spreekt met Emily, de automatische receptioniste van de praktijk."
@@ -44,14 +45,14 @@ nl:
     - "Alex Rivera, geboren op veertien maart negentienhonderd negentig."
     - "Het spijt me, ik kan u niet goed horen. Probeert u het later nog eens. Tot ziens."
 bs:
-  reviewed: false
+  reviewed: true
   numeric: [3, 4, 6]
   sentences:
     - "Hvala što ste nazvali Quillbrook Physio. Ja sam Emily, automatska recepcionerka klinike."
     - "Možete li mi reći svoje puno ime, molim vas?"
     - "Hvala. A vaš datum rođenja, molim vas? Recite dan, mjesec i godinu."
-    - "Mogu vam ponuditi utorak u deset i trideset ujutro, srijedu u četiri i trideset poslijepodne, ili četvrtak u devet sati ujutro."
-    - "Pomjerit ću vašu fizioterapiju ramena kod doktora Okafora sa sutra u tri i trideset poslijepodne na petak u devet sati ujutro. Je li to tačno?"
+    - "Mogu vam ponuditi utorak u pola jedanaest ujutro, srijedu u pola pet poslijepodne, ili četvrtak u devet sati ujutro."
+    - "Pomjerit ću vašu fizioterapiju ramena kod doktora Okafora sa sutra u pola četiri poslijepodne na petak u devet sati ujutro. Je li to tačno?"
     - "Vaš termin je sada potvrđen. Mogu li vam još nešto pomoći?"
     - "Alex Rivera, rođen četrnaestog marta hiljadu devetsto devedesete."
     - "Žao mi je, ne čujem vas dobro. Molim vas, pokušajte nazvati ponovo. Doviđenja."
