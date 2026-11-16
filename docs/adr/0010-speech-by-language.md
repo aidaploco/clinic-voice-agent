@@ -33,7 +33,7 @@ Mean word error rate on the scored sentences:
 
 - **English, Spanish and Dutch:** Deepgram `nova-3` to hear and Aura-2 to speak (Mexican voices for Spanish), with OpenAI as the voice fallback already in place.
 - **Bosnian:** OpenAI `gpt-4o-transcribe` to hear, with the Latin-script hint, and OpenAI `gpt-4o-mini-tts` to speak. Deepgram is not used for Bosnian.
-- So the services differ by language, and the language selects them: the speech-to-text and text-to-speech of a call are set per language. The plugins allow that during a call (`update_options` on both).
+- So the services differ by language, and the language selects them: the speech-to-text and text-to-speech of a call are set per language. `update_options` changes settings only within one provider, so moving between providers is done by handing the call to a step with its own services ([ADR-0011](0011-languages-in-a-call.md)).
 
 ## Open
 
