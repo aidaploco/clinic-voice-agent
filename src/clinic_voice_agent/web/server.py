@@ -7,15 +7,13 @@ on the owner's account.
 """
 
 import asyncio
-import json
-import re
 import secrets
 from datetime import datetime, timedelta
-from pathlib import Path
 
 from aiohttp import web
 from livekit import api
 
+from clinic_voice_agent.calls import CALL_ID, find_call, list_calls
 from clinic_voice_agent.limits import calls_today
 from clinic_voice_agent.settings import Settings, get_settings
 
@@ -23,12 +21,6 @@ from clinic_voice_agent.settings import Settings, get_settings
 TOKEN_LIFETIME = timedelta(minutes=5)
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
 SETTINGS = web.AppKey("settings", Settings)
-ROOM_NAME = re.compile(r"^web-[0-9a-f]{8}$")
-
-
-def find_record(folder: Path, room: str) -> dict | None:
-    found = sorted(folder.glob(f"*{room}.json")) if folder.is_dir() else []
-    return json.loads(found[-1].read_text()) if found else None
 
 
 def new_room_name() -> str:
@@ -97,12 +89,22 @@ async def token(request: web.Request) -> web.Response:
     return web.json_response({"url": settings.livekit_url, "token": jwt, "room": room})
 
 
+async def call_list(request: web.Request) -> web.Response:
+    """The newest calls, newest first: web, phone and scripted. Summaries only."""
+    try:
+        limit = max(1, min(int(request.query.get("limit", "50")), 200))
+    except ValueError:
+        raise web.HTTPBadRequest(text="limit must be a number") from None
+    folder = request.app[SETTINGS].recordings_dir
+    return web.json_response({"calls": await asyncio.to_thread(list_calls, folder, limit)})
+
+
 async def call_record(request: web.Request) -> web.Response:
-    """The finished record of a call, or 404 until the worker has written it."""
-    room = request.match_info["room"]
-    if not ROOM_NAME.match(room):
-        raise web.HTTPBadRequest(text="not a room name from this page")
-    record = await asyncio.to_thread(find_record, request.app[SETTINGS].recordings_dir, room)
+    """One call in full, or 404 until the worker has written it."""
+    call_id = request.match_info["call_id"]
+    if not CALL_ID.fullmatch(call_id):
+        raise web.HTTPBadRequest(text="not a call id")
+    record = await asyncio.to_thread(find_call, request.app[SETTINGS].recordings_dir, call_id)
     if record is None:
         raise web.HTTPNotFound(text="not written yet")
     return web.json_response(record)
@@ -126,7 +128,8 @@ def make_app(settings: Settings | None = None) -> web.Application:
     app[SETTINGS] = settings or get_settings()
     app.router.add_get("/", index)
     app.router.add_post("/api/token", token)
-    app.router.add_get("/api/calls/{room}", call_record)
+    app.router.add_get("/api/calls", call_list)
+    app.router.add_get("/api/calls/{call_id}", call_record)
     assets = app[SETTINGS].web_dist / "assets"
     if assets.is_dir():
         app.router.add_static("/assets/", assets)

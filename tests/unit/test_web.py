@@ -98,14 +98,17 @@ async def test_no_token_is_given_once_the_days_cap_is_reached(tmp_path):
         await c.close()
 
 
-async def test_a_record_is_served_only_for_a_room_name_from_this_page(tmp_path):
+async def test_a_record_is_served_only_for_a_call_id_that_cannot_be_a_path(tmp_path):
     (tmp_path / "2026-11-15T100000-web-0a1b2c3d.json").write_text(json.dumps({"ok": True}))
     c = await client(tmp_path)
     try:
         assert (await c.get("/api/calls/web-0a1b2c3d")).status == 200
         assert (await c.get("/api/calls/web-ffffffff")).status == 404
         assert (await c.get("/api/calls/..%2Fsecrets")).status in (400, 404)
-        assert (await c.get("/api/calls/console")).status == 400
+        assert (
+            await c.get("/api/calls/a.b")
+        ).status == 400  # no dots: nothing that looks like a path
+        assert (await c.get("/api/calls/console")).status == 404  # a valid id with no record
     finally:
         await c.close()
 
@@ -138,3 +141,28 @@ def test_defaults_do_not_depend_on_the_folder_a_command_is_run_from(tmp_path, mo
     assert settings.web_dist == PROJECT_ROOT / "web" / "dist"
     assert settings.recordings_dir == PROJECT_ROOT / "recordings"
     assert (PROJECT_ROOT / "pyproject.toml").is_file()
+
+
+async def test_the_call_list_endpoint_returns_summaries_newest_first_and_is_local_only(tmp_path):
+    for started, call_id in (
+        ("2026-11-15T10:00:00", "web-11111111"),
+        ("2026-11-15T12:00:00", "phone-aaaaaaaaaa"),
+    ):
+        record = {
+            "room": call_id,
+            "started": started,
+            "transcript": [{"speaker": "caller", "text": "x"}],
+        }
+        (tmp_path / f"{started.replace(':', '')}-{call_id}.json").write_text(json.dumps(record))
+    c = await client(tmp_path)
+    try:
+        body = await (await c.get("/api/calls")).json()
+        assert [x["id"] for x in body["calls"]] == ["phone-aaaaaaaaaa", "web-11111111"]
+        assert "transcript" not in body["calls"][0]
+        assert (await c.get("/api/calls?limit=1")).status == 200
+        assert (await c.get("/api/calls?limit=lots")).status == 400
+        assert (await c.get("/api/calls", headers={"Host": "evil.example"})).status == 403
+        one = await (await c.get("/api/calls/phone-aaaaaaaaaa")).json()
+        assert one["transcript"][0]["text"] == "x"
+    finally:
+        await c.close()
