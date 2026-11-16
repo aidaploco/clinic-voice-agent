@@ -60,3 +60,15 @@ def test_calls_are_pooled_into_a_median_and_a_95th_percentile():
     one = {"latency_seconds": {"reply": {"values": [1.0, 2.0]}}}
     two = {"latency_seconds": {"reply": {"values": [3.0, 4.0]}}}
     assert pooled([one, two, {}]) == {"reply": {"median": 2.5, "p95": 4.0, "turns": 4}}
+
+
+def test_the_callers_own_waits_are_read_from_the_call_script_output_and_summarised():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("measure", "scripts/measure_latency.py")
+    measure = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(measure)
+    assert measure.waits_from("room x\nreply_waits [1.5, 2.25]\nmore") == [1.5, 2.25]
+    assert measure.waits_from("no marker") == []
+    table = measure.caller_side([[1.0, 2.0], [3.0]])
+    assert "| Alex" not in table and "| 2.00 |" in table and "**every line**" in table

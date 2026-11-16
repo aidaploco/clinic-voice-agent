@@ -14,10 +14,11 @@ import json
 import sys
 import time
 from pathlib import Path
+from statistics import median
 
 from dotenv import load_dotenv
 
-from clinic_voice_agent.latency import pooled
+from clinic_voice_agent.latency import percentile, pooled
 from clinic_voice_agent.settings import get_settings
 
 LINES = [
@@ -40,12 +41,38 @@ ROWS = [
 ]
 
 
-async def one_call() -> None:
+async def one_call() -> list[float]:
+    """Run one spoken call; return the caller's own wait after each line."""
     process = await asyncio.create_subprocess_exec(
         sys.executable, "scripts/audio_caller.py", *LINES,
-        stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
     )  # fmt: skip
-    await process.wait()
+    out, _ = await process.communicate()
+    return waits_from(out.decode())
+
+
+def waits_from(output: str) -> list[float]:
+    for line in output.splitlines():
+        if line.startswith("reply_waits "):
+            return json.loads(line.removeprefix("reply_waits "))
+    return []
+
+
+def caller_side(calls: list[list[float]]) -> str:
+    """The wait the caller felt, after each line and overall. Nothing is left out of this one."""
+    rows = ["| After the caller says | Median (s) | Worst (s) | Calls |", "|---|---|---|---|"]
+    every: list[float] = []
+    for number, line in enumerate(LINES):
+        values = [call[number] for call in calls if len(call) > number]
+        every += values
+        if values:
+            rows.append(f'| "{line}" | {median(values):.2f} | {max(values):.2f} | {len(values)} |')
+    if every:
+        rows.append(
+            f"| **every line** | **{median(every):.2f}** | **{percentile(every, 0.95):.2f}** "
+            f"(95th percentile) | {len(every)} |"
+        )
+    return "\n".join(rows)
 
 
 def table(numbers: dict[str, dict[str, float]]) -> str:
@@ -60,15 +87,18 @@ def table(numbers: dict[str, dict[str, float]]) -> str:
 async def main(calls: int) -> int:
     load_dotenv()
     began = time.time()
+    waits: list[list[float]] = []
     for number in range(1, calls + 1):
         print(f"call {number} of {calls}", flush=True)
-        await one_call()
+        waits.append(await one_call())
+    print(caller_side(waits))
     folder: Path = get_settings().recordings_dir
     records = [
         json.loads(path.read_text())
         for path in sorted(folder.glob("*.json"))
         if path.stat().st_mtime >= began
     ]
+    print("\nInside the agent (replies a tool speaks itself are not reported here):")
     print(f"{len(records)} call records")
     if not records:
         return 1

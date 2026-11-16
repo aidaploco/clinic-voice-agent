@@ -123,7 +123,9 @@ async def main(lines: list[str]) -> int:
     )
     room = rtc.Room()
     await room.connect(os.environ["LIVEKIT_URL"], token)
-    source = rtc.AudioSource(SAMPLE_RATE, 1)
+    # A shallow queue: the default holds a second of audio ahead, which delays the speech
+    # by a second and inflates every wait this script measures.
+    source = rtc.AudioSource(SAMPLE_RATE, 1, queue_size_ms=100)
     track = rtc.LocalAudioTrack.create_audio_track("microphone", source)
     await room.local_participant.publish_track(
         track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE)
@@ -154,6 +156,9 @@ async def main(lines: list[str]) -> int:
         mic.cancel()
         if room.isconnected():
             await room.disconnect()
+
+    # What the caller felt, per line: its speech ends -> the agent's state turns to speaking.
+    print("reply_waits", json.dumps([round(wait, 3) for wait in waits]), flush=True)
 
     # The worker writes the record once the call has fully closed, which can
     # take a while after the caller leaves.
