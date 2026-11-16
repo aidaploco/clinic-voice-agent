@@ -76,6 +76,8 @@ The same receptionist, tools and flow on a speech-to-speech model, which hears a
 
 Acceptance: a written comparison with numbers, and a recommendation.
 
+Status: done as an experiment, 2026-11-16 ([ADR-0012](adr/0012-speech-to-speech.md)). Recommendation: keep the chain. Measured on a handful of calls only; the owner listened and preferred the chain.
+
 ### Phase 7: packaging
 
 A container for the worker, a short deployment guide, traces with personal data filtered out, and a README a stranger can follow.
