@@ -1,4 +1,4 @@
-import type { AuditEvent, Check } from "./types";
+import type { AuditEvent, CallSummary, Channel, Check } from "./types";
 
 const EVENT_TITLES: Record<string, string> = {
   identity_check: "Checked who is calling",
@@ -62,3 +62,58 @@ export const agentStateLabel = (state: string): string =>
     thinking: "Thinking",
     speaking: "Speaking",
   })[state] ?? state;
+
+const CHANNEL_LABELS: Record<Channel, string> = {
+  phone: "Phone",
+  browser: "Browser",
+  test: "Scripted test",
+  console: "Terminal",
+  other: "Other",
+};
+export const channelLabel = (channel: Channel) => CHANNEL_LABELS[channel];
+
+const ENDINGS: Record<string, string> = {
+  caller_hung_up: "Caller hung up",
+  agent_ended_call: "Emily ended the call",
+  time_limit: "Time limit reached",
+  silence: "Line went silent",
+  stt_silent: "Could not hear the caller",
+  worker_shutdown: "Worker stopped",
+};
+export function describeEnding(reason: string): string {
+  if (reason.startsWith("service_failed")) return "A service failed";
+  return ENDINGS[reason] ?? (reason ? reason.replaceAll("_", " ") : "Unknown");
+}
+
+const clock = (d: Date) => d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
+/** "Today, 8:54 PM", "Yesterday, 9:02 AM" or "Nov 14, 8:54 PM". */
+export function describeStarted(iso: string, now: Date = new Date()): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "Unknown time";
+  const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((day(now) - day(at)) / 86_400_000);
+  if (days === 0) return `Today, ${clock(at)}`;
+  if (days === 1) return `Yesterday, ${clock(at)}`;
+  return `${at.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${clock(at)}`;
+}
+
+/** What became of the appointment: "confirmed, Fri 9:00 AM" or that nobody was verified. */
+export function describeOutcome(call: Pick<CallSummary, "appointment_after">): string {
+  const after = call.appointment_after;
+  if (!after) return "No patient verified";
+  const when = new Date(after.start);
+  const text = Number.isNaN(when.getTime())
+    ? after.start
+    : `${when.toLocaleDateString("en-US", { weekday: "short" })} ${clock(when)}`;
+  return `${after.status}, ${text}`;
+}
+
+/** The review as one chip: a failure first, a skipped check never as a pass. */
+export function reviewChip(checks: CallSummary["checks"]): { label: string; kind: "pass" | "fail" | "not_run" } {
+  const total = checks.pass + checks.fail + checks.not_run;
+  if (total === 0) return { label: "No review", kind: "not_run" };
+  if (checks.fail) return { label: `${checks.fail} to read`, kind: "fail" };
+  if (checks.not_run) return { label: `${checks.pass} of ${total} passed`, kind: "not_run" };
+  return { label: "All passed", kind: "pass" };
+}

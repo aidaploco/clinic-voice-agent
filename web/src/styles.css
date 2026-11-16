@@ -1,4 +1,5 @@
 :root {
+  color-scheme: light dark;
   --bg: #f4f7f6; --card: #ffffff; --ink: #14201e; --muted: #5b6b68; --line: #dbe4e1;
   --brand: #0f766e; --brand-ink: #ffffff; --brand-soft: #d9efec;
   --ok: #166534; --ok-bg: #dcf3e4; --no: #9a3412; --no-bg: #fde8dc; --warn: #854d0e; --warn-bg: #fdf1cf;
@@ -87,3 +88,23 @@ button:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 55%, t
 .facts dt { color: var(--muted); } .facts dd { margin: 0; overflow-wrap: anywhere; }
 
 .behind section { margin-top: 8px; }
+
+.below { max-width: 1100px; margin: 0 auto 48px; padding: 0 16px; }
+.calls-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.calls-head h2 { margin: 0; flex: 1; min-width: 140px; }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.filter { font-size: 13px; padding: 5px 12px; border-radius: 999px; background: transparent; border: 1px solid var(--line); color: var(--muted); font-weight: 600; }
+.filter[aria-pressed="true"] { background: var(--brand-soft); color: var(--ink); border-color: var(--brand); }
+button.small { padding: 6px 14px; font-size: 13px; }
+.call-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow-y: auto; }
+.call-row { width: 100%; text-align: left; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: center; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; color: var(--ink); font-weight: 400; }
+.call-row:hover { border-color: var(--brand); }
+.call-row[aria-current="true"] { border-color: var(--brand); box-shadow: 0 0 0 2px color-mix(in srgb, var(--brand) 30%, transparent); }
+.row-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.row-when { font-weight: 650; }
+.row-detail { grid-column: 1; font-size: 13px; color: var(--muted); }
+.call-row > .chip { grid-column: 2; grid-row: 1 / span 2; }
+.chip.channel { background: var(--line); color: var(--muted); }
+.chip.changed { background: var(--brand-soft); color: var(--ink); }
+.viewing { margin: 12px 0 0; padding: 8px 12px; border-radius: 10px; background: var(--warn-bg); color: var(--warn); font-size: 14px; }
+button.link { background: none; border: none; padding: 0; color: inherit; text-decoration: underline; font: inherit; font-weight: 650; cursor: pointer; }

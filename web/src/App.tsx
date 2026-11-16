@@ -1,13 +1,15 @@
 import { LiveKitRoom, RoomAudioRenderer, StartAudio } from "@livekit/components-react";
-import { useCallback, useState } from "react";
-import { fetchToken, waitForRecord } from "./api";
+import { useCallback, useEffect, useState } from "react";
+import { fetchCalls, fetchRecord, fetchToken, waitForRecord } from "./api";
 import { CallCard } from "./CallCard";
+import { CallList } from "./CallList";
+import { describeStarted } from "./describe";
 import { GatewayEvents } from "./GatewayEvents";
 import { ReviewPanel } from "./ReviewPanel";
 import { RoomStreams } from "./RoomStreams";
 import { Transcript } from "./Transcript";
 import { upsertLine } from "./lines";
-import type { AuditEvent, CallRecord, Line, TokenResponse } from "./types";
+import type { AuditEvent, CallRecord, CallSummary, Line, TokenResponse } from "./types";
 import { useElapsed } from "./useElapsed";
 
 type Phase = "idle" | "connecting" | "live";
@@ -22,12 +24,52 @@ export function App() {
   const [agentState, setAgentState] = useState("idle");
   const [note, setNote] = useState({ text: "", problem: false });
   const elapsed = useElapsed(phase === "live");
-
   const say = useCallback((text: string, problem = false) => setNote({ text, problem }), []);
   const onLine = useCallback((line: Line) => setLines((all) => upsertLine(all, line)), []);
   const onEvent = useCallback((event: AuditEvent) => setEvents((all) => [...all, event]), []);
 
+  const [calls, setCalls] = useState<CallSummary[]>([]);
+  const [listState, setListState] = useState<"loading" | "ready" | "error">("loading");
+  const [viewing, setViewing] = useState<{ summary: CallSummary; record: CallRecord } | null>(null);
+
+  const refreshCalls = useCallback(async () => {
+    try {
+      setCalls(await fetchCalls());
+      setListState("ready");
+    } catch {
+      setListState("error");
+    }
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchCalls().then(
+      (rows) => {
+        if (cancelled) return;
+        setCalls(rows);
+        setListState("ready");
+      },
+      () => {
+        if (!cancelled) setListState("error");
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function openCall(summary: CallSummary) {
+    try {
+      const opened = await fetchRecord(summary.id);
+      if (opened) setViewing({ summary, record: opened });
+      else say("That call's record is not there any more.", true);
+    } catch (error) {
+      say(`Could not open the call: ${error instanceof Error ? error.message : String(error)}`, true);
+    }
+  }
+
   async function start() {
+    setViewing(null);
     setLines([]);
     setEvents([]);
     setRecord(null);
@@ -56,6 +98,7 @@ export function App() {
     if (result) {
       setRecord(result);
       say("");
+      void refreshCalls();
     } else {
       say("The call record was not written in time. Check the worker.", true);
     }
@@ -81,13 +124,30 @@ export function App() {
             onStart={start}
             onHangUp={() => setWantConnected(false)}
           />
-          <Transcript lines={lines} />
+          {viewing && (
+            <p className="viewing" role="status">
+              Viewing a past call ({describeStarted(viewing.record.started)}).{" "}
+              <button className="link" onClick={() => setViewing(null)}>
+                Back to live
+              </button>
+            </p>
+          )}
+          <Transcript lines={viewing ? viewing.record.transcript : lines} />
         </section>
         <aside className="behind card" aria-label="Behind the scenes">
-          <GatewayEvents events={events} />
-          {record && <ReviewPanel record={record} />}
+          <GatewayEvents events={viewing ? viewing.record.audit : events} />
+          {(viewing?.record ?? record) && <ReviewPanel record={(viewing?.record ?? record) as CallRecord} />}
         </aside>
       </main>
+      <div className="below">
+        <CallList
+          calls={calls}
+          state={listState}
+          openId={viewing?.summary.id ?? null}
+          onOpen={(c) => void openCall(c)}
+          onRefresh={() => void refreshCalls()}
+        />
+      </div>
       {call && (
         <LiveKitRoom
           serverUrl={call.url}

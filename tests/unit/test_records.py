@@ -32,3 +32,17 @@ async def test_a_cancelled_appointment_is_recorded_as_cancelled_not_as_missing()
         "commit_change",
     ]
     assert record["audit"][-1]["details"]["confirmation"]["said"] == "Yes."
+
+
+def test_a_record_carries_a_utc_offset_and_its_file_name_does_not(tmp_path):
+    from datetime import datetime
+
+    from clinic_voice_agent.records import save
+
+    clinic = demo_clinic(NOW)
+    record = call_record("web-0a1b2c3d", NOW, Gateway(clinic, NOW, yes), clinic, [])
+    assert datetime.fromisoformat(record["started"]).utcoffset() is not None
+    assert datetime.fromisoformat(record["ended"]).utcoffset() is not None
+    name = save(record, tmp_path).name
+    assert name.endswith("-web-0a1b2c3d.json") and "+" not in name and ":" not in name
+    assert len(name.split("-web-")[0]) == len("2026-11-16T100000")

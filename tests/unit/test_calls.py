@@ -79,3 +79,26 @@ def test_one_call_is_found_only_by_exactly_its_id(tmp_path):
 def test_an_id_that_could_be_a_path_is_never_looked_up(tmp_path):
     for bad in ("../x", "a/b", "a.b", "", "-x", "x" * 80, "x\n"):
         assert not CALL_ID.fullmatch(bad) and find_call(tmp_path, bad) is None
+
+
+def test_calls_are_ordered_by_when_they_really_began_not_by_their_file_names(tmp_path):
+    # A record written in a container is named by the container's clock (UTC); one written on a
+    # laptop in UTC-6 by the laptop's. By file name the first looks later; in fact it is older.
+    (tmp_path / "2026-11-16T031102-phone-aaaaaaaaaa.json").write_text(
+        json.dumps({"room": "phone-aaaaaaaaaa", "started": "2026-11-16T03:11:02+00:00"})
+    )
+    (tmp_path / "2026-11-15T211516-test-bbbbbbbb.json").write_text(
+        json.dumps({"room": "test-bbbbbbbb", "started": "2026-11-15T21:15:16-06:00"})
+    )
+    assert [c["id"] for c in list_calls(tmp_path)] == ["test-bbbbbbbb", "phone-aaaaaaaaaa"]
+
+
+def test_a_record_with_no_readable_time_sorts_as_the_oldest_instead_of_failing(tmp_path):
+    for call_id, started in (
+        ("web-11111111", "2026-11-15T10:00:00+00:00"),
+        ("web-22222222", "garbage"),
+    ):
+        (tmp_path / f"2026-11-15T100000-{call_id}.json").write_text(
+            json.dumps({"room": call_id, "started": started})
+        )
+    assert [c["id"] for c in list_calls(tmp_path)] == ["web-11111111", "web-22222222"]

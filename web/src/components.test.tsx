@@ -69,6 +69,9 @@ describe("the gateway's decisions", () => {
 
 describe("the review", () => {
   const record: CallRecord = {
+    started: "2026-11-15T20:54:00",
+    transcript: [],
+    audit: [],
     ended_because: "caller_hung_up",
     appointment_after: { start: "2026-11-17T10:30", status: "confirmed", practitioner: "Dr. Okafor" },
     checks: [

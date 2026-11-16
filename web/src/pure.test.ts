@@ -75,7 +75,14 @@ describe("the transcript", () => {
 });
 
 describe("waiting for the call record", () => {
-  const record: CallRecord = { ended_because: "caller_hung_up", appointment_after: null, checks: [] };
+  const record: CallRecord = {
+    started: "",
+    transcript: [],
+    audit: [],
+    ended_because: "caller_hung_up",
+    appointment_after: null,
+    checks: [],
+  };
   it("polls until the record exists", async () => {
     const answers = [null, null, record];
     const fetcher = vi.fn(async () => answers.shift() ?? null);

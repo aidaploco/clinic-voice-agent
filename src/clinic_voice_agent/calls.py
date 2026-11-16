@@ -7,6 +7,7 @@ synchronous; the server runs it off the event loop.
 
 import json
 import re
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -56,18 +57,32 @@ def _read(path: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def started_at(started: str) -> datetime:
+    """When a call began, as a moment in time. A record without an offset (older ones) is taken
+    to be in this machine's zone; one that cannot be read sorts as the oldest."""
+    try:
+        at = datetime.fromisoformat(started)
+    except (TypeError, ValueError):
+        return datetime.min.replace(tzinfo=UTC)
+    return at.astimezone()  # a naive time is read as local; an aware one is converted
+
+
+# Only this many of the newest files are read to build a list; file names sort by their own clock,
+# which can differ from a record's real time by hours (a container's), so the list is sorted again.
+SCAN_LIMIT = 300
+
+
 def list_calls(folder: Path, limit: int = 50) -> list[dict[str, Any]]:
-    """The newest `limit` calls, newest first."""
+    """The newest `limit` calls by when they really began, newest first."""
     if not folder.is_dir():
         return []
     names = sorted((p for p in folder.glob("*.json") if FILE_NAME.fullmatch(p.name)), reverse=True)
     summaries = []
-    for path in names:
-        if (record := _read(path)) is not None:
+    for path in names[:SCAN_LIMIT]:
+        if (record := _read(path)) is not None:  # unreadable files are skipped over
             summaries.append(summarise(record))
-            if len(summaries) == limit:
-                break  # the limit counts calls, not files: unreadable ones are skipped over
-    return summaries
+    summaries.sort(key=lambda call: started_at(call["started"]), reverse=True)
+    return summaries[:limit]
 
 
 def find_call(folder: Path, call_id: str) -> dict[str, Any] | None:

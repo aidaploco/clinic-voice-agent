@@ -35,8 +35,10 @@ def call_record(
     appointment = clinic.last_known_appointment(patient.id) if patient else None
     return {
         "room": room,
-        "started": started.isoformat(timespec="seconds"),
-        "ended": datetime.now().isoformat(timespec="seconds"),
+        # With a UTC offset, so the time means the same wherever it is read: a record written in
+        # a container (UTC) and read on a laptop must not shift by hours.
+        "started": started.astimezone().isoformat(timespec="seconds"),
+        "ended": datetime.now().astimezone().isoformat(timespec="seconds"),
         "ended_because": ended_because,
         "errors": errors or [],
         "patient_id": patient.id if patient else None,
@@ -57,6 +59,7 @@ def call_record(
 
 def save(record: dict[str, Any], directory: Path) -> Path:
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / f"{record['started'].replace(':', '')}-{record['room']}.json"
+    stamp = record["started"][:19].replace(":", "")  # without the offset: it is the file's name
+    path = directory / f"{stamp}-{record['room']}.json"
     path.write_text(json.dumps(record, indent=2, ensure_ascii=False))
     return path

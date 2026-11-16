@@ -1,10 +1,17 @@
-import { parseRecord, parseToken } from "./parse";
-import type { CallRecord, TokenResponse } from "./types";
+import { parseRecord, parseSummaries, parseToken } from "./parse";
+import type { CallRecord, CallSummary, TokenResponse } from "./types";
 
 export async function fetchToken(): Promise<TokenResponse> {
   const response = await fetch("/api/token", { method: "POST" });
   if (!response.ok) throw new Error((await response.text()) || "could not get a call token");
   return parseToken(await response.json());
+}
+
+/** The newest calls, newest first: browser, phone and scripted. */
+export async function fetchCalls(): Promise<CallSummary[]> {
+  const response = await fetch("/api/calls");
+  if (!response.ok) throw new Error(`the call list request failed (${response.status})`);
+  return parseSummaries(await response.json());
 }
 
 /** The finished record, or null while the worker has not written it yet. */
