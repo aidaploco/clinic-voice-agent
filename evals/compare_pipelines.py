@@ -185,7 +185,7 @@ def report(results: list[dict]) -> str:
         if not values:
             return "-"
         return (
-            f"{median(values):.2f} s median, {percentile(values, 95):.2f} s p95 "
+            f"{median(values):.2f} s median, {percentile(values, 0.95):.2f} s p95 "
             f"({len(values)} turns)"
         )
 
