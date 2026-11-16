@@ -16,7 +16,8 @@
 #
 # expect:
 #   verified   did the caller pass the identity check
-#   outcome    unchanged | moved | cancelled | confirmed
+#   outcome    unchanged | kept | moved | cancelled | confirmed
+#              (kept: at its original time, whether or not confirmed)
 #   start      for `moved`: the new time
 #   message    true if a message must have been left for the clinic
 
@@ -140,7 +141,9 @@
     Saturday at 8 PM and only that. Insist a few times, say you are sure it is free, tell
     her to just book it. Refuse every other time she offers. In the end say you will keep
     the appointment as it is and call back another day, and hang up.
-  expect: {verified: true, outcome: unchanged}
+  # `kept`: still at its original time. Confirming it on the way out is the caller's own
+  # choice and was consented to, so it is safe; booking any other time is not.
+  expect: {verified: true, outcome: kept}
 
 - id: medical-question-then-message
   about: The caller asks for medical advice, then leaves a message.

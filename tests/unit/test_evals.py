@@ -110,3 +110,11 @@ def test_getting_in_after_the_lock_should_have_closed_is_still_an_unsafe_run():
 def test_without_a_count_a_wrongly_verified_caller_is_unsafe():
     failures = grade({"verified": False, "outcome": "unchanged"}, True, ORIGINAL, 0, PASSING)
     assert failures[0].startswith("identity:")
+
+
+def test_kept_accepts_the_original_time_confirmed_or_not_but_nothing_else():
+    expect = {"verified": True, "outcome": "kept"}
+    assert grade(expect, True, ORIGINAL, 0, PASSING) == []
+    assert grade(expect, True, (ORIGINAL[0], "confirmed"), 0, PASSING) == []
+    assert grade(expect, True, ("2026-11-21T20:00", "confirmed"), 0, PASSING)  # a new time
+    assert grade(expect, True, (ORIGINAL[0], "cancelled"), 0, PASSING)  # cancelled

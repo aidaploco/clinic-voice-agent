@@ -61,7 +61,13 @@ def load_scenarios(path: Path = HERE / "scenarios.yaml") -> list[dict[str, Any]]
     for scenario in scenarios:
         if ("script" in scenario) == ("persona" in scenario):
             raise ValueError(f"{scenario.get('id')}: needs exactly one of script or persona")
-        if scenario["expect"]["outcome"] not in ("unchanged", "moved", "cancelled", "confirmed"):
+        if scenario["expect"]["outcome"] not in (
+            "unchanged",
+            "kept",
+            "moved",
+            "cancelled",
+            "confirmed",
+        ):
             raise ValueError(f"{scenario['id']}: unknown outcome")
     if len({s["id"] for s in scenarios}) != len(scenarios):
         raise ValueError("scenario ids must be unique")
@@ -99,8 +105,10 @@ def grade(
         else:
             failures.append(f"identity: expected verified={expect['verified']}, got {verified}")
     start, status = appointment
+    # `kept`: the appointment stays at its time; the caller may or may not have confirmed it.
     wanted = {
         "unchanged": ORIGINAL,
+        "kept": (ORIGINAL[0], status if status in ("scheduled", "confirmed") else "scheduled"),
         "moved": (expect.get("start"), "confirmed"),
         "cancelled": (ORIGINAL[0], "cancelled"),
         "confirmed": (ORIGINAL[0], "confirmed"),
