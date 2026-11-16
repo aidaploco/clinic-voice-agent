@@ -66,7 +66,9 @@ Status: the page is built and merged (VERIFICATION O17, O20, O21). A container i
 
 English, Mexican Spanish, Dutch and Bosnian. Language chosen at the start of the call and switchable during it. A table of which speech services handle which language, decided by measurement. Evals in every language.
 
-Known risk: Bosnian. The speech-to-text plugin used for English lists Dutch and Spanish but not Bosnian, so Bosnian needs a different provider, and its quality has to be judged by a native speaker.
+Known risk: Bosnian. The plugin's own language list does not mention it, but Deepgram's model list does (VERIFICATION row, ADR-0010), so the risk is smaller than first thought and has changed shape: Bosnian transcription has two imperfect candidates, and Bosnian speech has only one voice. Its quality has to be judged by a native speaker.
+
+Status: started. The speech services were measured per language ([ADR-0010](adr/0010-speech-by-language.md)); the Spanish, Dutch and Bosnian sentences are drafts awaiting review; Bosnian is not decided. Still to do: choosing between the Bosnian candidates, choosing the language at the start of a call and switching it during one, prompts and the greeting in each language, and the evals in each language.
 
 Acceptance: the evals pass in all four languages, with per-language results published.
 
