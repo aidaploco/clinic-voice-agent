@@ -6,13 +6,27 @@ interface Props {
   elapsed: string;
   note: { text: string; problem: boolean };
   busy: boolean;
+  phone: "idle" | "confirm" | "dialling";
   onStart: () => void;
   onHangUp: () => void;
+  onPhone: () => void;
+  onPhoneCancel: () => void;
 }
 
 const bars = Array.from({ length: 7 }, (_, i) => i);
 
-export function CallCard({ agentState, live, elapsed, note, busy, onStart, onHangUp }: Props) {
+export function CallCard({
+  agentState,
+  live,
+  elapsed,
+  note,
+  busy,
+  phone,
+  onStart,
+  onHangUp,
+  onPhone,
+  onPhoneCancel,
+}: Props) {
   const shown = live || busy ? agentState : "idle";
   const animated = shown === "speaking" || shown === "thinking" ? shown : "";
   return (
@@ -43,9 +57,26 @@ export function CallCard({ agentState, live, elapsed, note, busy, onStart, onHan
             <span className="timer">{elapsed}</span>
           </>
         ) : (
-          <button className="primary" onClick={onStart} disabled={busy}>
-            Start a call
-          </button>
+          <>
+            <button className="primary" onClick={onStart} disabled={busy || phone !== "idle"}>
+              Start a call
+            </button>
+            {phone === "confirm" ? (
+              <span className="confirm" role="group" aria-label="Confirm ringing your phone">
+                <span>Ring your phone now?</span>
+                <button className="primary" onClick={onPhone}>
+                  Yes, ring it
+                </button>
+                <button className="secondary" onClick={onPhoneCancel}>
+                  Cancel
+                </button>
+              </span>
+            ) : (
+              <button className="secondary" onClick={onPhone} disabled={busy || phone === "dialling"}>
+                {phone === "dialling" ? "Ringing your phone\u2026" : "Call my phone"}
+              </button>
+            )}
+          </>
         )}
       </div>
       <p className={`note${note.problem ? " problem" : ""}`} role="status">

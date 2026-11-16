@@ -62,6 +62,10 @@ uv run python scripts/setup_inbound.py --revert --apply   # put it back
 
 A dispatch rule names who answers, so changing it changes who is called for that number; the tool saves the rule it replaces and can put it back. The number's origination address at Twilio must point at your LiveKit project's SIP address (your Twilio account; nothing here changes it).
 
+### Emily calling you
+
+The page has a **Call my phone** button. It asks "Ring your phone now?" and dials only when you confirm. Emily is put into the room first, and your phone is rung only once she is there, so if no worker is running (or it is busy) nothing is dialled. It always rings the number in `ALLOWED_NUMBERS`, never one sent by the page, and needs `SIP_OUTBOUND_TRUNK_ID` in `.env`. The ring is limited to `RING_SECONDS` (30) and the call to `MAX_CALL_SECONDS`. There is no answering-machine detection. See [ADR-0009](docs/adr/0009-calling-out.md). Each outbound call is billed by your telephone provider.
+
 Each call writes a record to `recordings/`: the transcript, every request the gateway allowed or refused, the review of the call, the appointment afterwards, why the call ended, any service errors, and how long each reply took.
 
 To store calls in Postgres as well, start the local database and set `DATABASE_URL` (see `.env.example`). The worker creates the tables when it starts.

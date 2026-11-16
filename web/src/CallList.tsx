@@ -57,6 +57,7 @@ export function CallList({ calls, state, openId, onOpen, onRefresh }: Props) {
                 <span className="row-main">
                   <span className="row-when">{describeStarted(call.started)}</span>
                   <span className="chip channel">{channelLabel(call.channel)}</span>
+                  {call.direction === "outbound" && <span className="chip channel">Emily called</span>}
                   {call.changed && <span className="chip changed">changed the appointment</span>}
                 </span>
                 <span className="row-detail">

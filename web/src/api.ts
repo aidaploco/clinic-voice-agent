@@ -44,3 +44,19 @@ export async function waitForRecord(room: string, options: Waiting = {}): Promis
   }
   return null;
 }
+
+/**
+ * Ring the owner's phone. The server dials the number in its own allowlist; this sends none.
+ * Resolves with the call's id once the phone is answered, and rejects with the server's reason
+ * (no worker running, not answered, cap reached) otherwise.
+ */
+export async function callMyPhone(): Promise<string> {
+  const response = await fetch("/api/call-me", { method: "POST" });
+  const body: unknown = await response.json().catch(() => ({}));
+  const fields = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+  if (!response.ok) {
+    throw new Error(typeof fields.error === "string" ? fields.error : `could not place the call (${response.status})`);
+  }
+  if (typeof fields.room !== "string") throw new Error("the server did not say which call it placed");
+  return fields.room;
+}

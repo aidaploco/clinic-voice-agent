@@ -1,6 +1,6 @@
 import { LiveKitRoom, RoomAudioRenderer, StartAudio } from "@livekit/components-react";
 import { useCallback, useEffect, useState } from "react";
-import { fetchCalls, fetchRecord, fetchToken, waitForRecord } from "./api";
+import { callMyPhone, fetchCalls, fetchRecord, fetchToken, waitForRecord } from "./api";
 import { CallCard } from "./CallCard";
 import { CallList } from "./CallList";
 import { describeStarted } from "./describe";
@@ -24,6 +24,7 @@ export function App() {
   const [agentState, setAgentState] = useState("idle");
   const [note, setNote] = useState({ text: "", problem: false });
   const elapsed = useElapsed(phase === "live");
+  const [phone, setPhone] = useState<"idle" | "confirm" | "dialling">("idle");
   const say = useCallback((text: string, problem = false) => setNote({ text, problem }), []);
   const onLine = useCallback((line: Line) => setLines((all) => upsertLine(all, line)), []);
   const onEvent = useCallback((event: AuditEvent) => setEvents((all) => [...all, event]), []);
@@ -65,6 +66,38 @@ export function App() {
       else say("That call's record is not there any more.", true);
     } catch (error) {
       say(`Could not open the call: ${error instanceof Error ? error.message : String(error)}`, true);
+    }
+  }
+
+  /** Ring the owner's phone. The first click only asks; nothing is dialled until it is confirmed. */
+  async function phoneStep() {
+    if (phone === "idle") {
+      setPhone("confirm");
+      return;
+    }
+    setViewing(null);
+    setLines([]);
+    setEvents([]);
+    setRecord(null);
+    setPhone("dialling");
+    say("Getting Emily ready, then ringing your phone. Pick up and talk to her.");
+    try {
+      const room = await callMyPhone();
+      say("Answered. Talk to Emily on your phone; the call appears here when it ends.");
+      const result = await waitForRecord(room, { attempts: 160 });
+      if (result) {
+        setLines(result.transcript);
+        setEvents(result.audit);
+        setRecord(result);
+        say("");
+        void refreshCalls();
+      } else {
+        say("The call record was not written in time. Check the worker.", true);
+      }
+    } catch (error) {
+      say(`Could not call your phone: ${error instanceof Error ? error.message : String(error)}`, true);
+    } finally {
+      setPhone("idle");
     }
   }
 
@@ -121,8 +154,11 @@ export function App() {
             busy={phase === "connecting"}
             elapsed={elapsed}
             note={note}
+            phone={phone}
             onStart={start}
             onHangUp={() => setWantConnected(false)}
+            onPhone={() => void phoneStep()}
+            onPhoneCancel={() => setPhone("idle")}
           />
           {viewing && (
             <p className="viewing" role="status">

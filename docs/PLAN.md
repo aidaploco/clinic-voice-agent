@@ -55,7 +55,7 @@ In this order, each a set of reviewable changes:
 
 1. **A browser page** ([ADR-0004](adr/0004-browser-ui.md), built with React and TypeScript per [ADR-0005](adr/0005-react-frontend.md)): a button to start a call, the live transcript, the gateway's allowed and refused requests, and the review after hang-up. Run locally, with a screenshot in the README. The per-call length limit and the daily cap, which the worker does not yet enforce, come first.
 2. **Inbound calls.** A phone number on a SIP trunk, routed to the worker by a dispatch rule. A call from a number that is not on the allowlist is turned away.
-3. **Outbound calls** with answering-machine detection. Only the owner's number can be dialled.
+3. **Outbound calls.** Only the owner's number can be dialled ([ADR-0009](adr/0009-calling-out.md)). Answering-machine detection is not built.
 4. **Handing a call over to a person.**
 
 Acceptance: a call completed from the page; inbound and outbound calls on a real handset; a call from a number that is not allowed is turned away.

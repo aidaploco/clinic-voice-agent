@@ -88,7 +88,17 @@ describe("the review", () => {
 });
 
 describe("the call card", () => {
-  const base = { agentState: "idle", live: false, elapsed: "0:00", busy: false, onStart() {}, onHangUp() {} };
+  const base = {
+    agentState: "idle",
+    live: false,
+    elapsed: "0:00",
+    busy: false,
+    phone: "idle" as const,
+    onStart() {},
+    onHangUp() {},
+    onPhone() {},
+    onPhoneCancel() {},
+  };
   it("offers Start when idle and Hang up with a timer when live", () => {
     const { rerender } = render(<CallCard {...base} note={{ text: "", problem: false }} />);
     expect(screen.getByRole("button", { name: "Start a call" })).toBeEnabled();

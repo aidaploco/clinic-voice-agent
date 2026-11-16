@@ -44,6 +44,7 @@ export type Channel = "phone" | "browser" | "test" | "console" | "other";
 export interface CallSummary {
   id: string;
   channel: Channel;
+  direction: "outbound" | null;
   started: string;
   ended_because: string;
   appointment_after: { start: string; status: string; practitioner: string } | null;

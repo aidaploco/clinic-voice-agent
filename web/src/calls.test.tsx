@@ -10,6 +10,7 @@ import type { CallRecord, CallSummary } from "./types";
 const call = (over: Partial<CallSummary> = {}): CallSummary => ({
   id: "web-0a1b2c3d",
   channel: "browser",
+  direction: null,
   started: "2026-11-15T20:54:00",
   ended_because: "agent_ended_call",
   appointment_after: { start: "2026-11-20T09:00", status: "confirmed", practitioner: "Dr. L" },
@@ -53,6 +54,10 @@ describe("parsing the call list and a past call", () => {
     expect(parseSummaries("nonsense")).toEqual([]);
     expect(parseSummaries({ calls: "no" })).toEqual([]);
   });
+  it("keeps which calls Emily placed", () => {
+    const rows = parseSummaries({ calls: [{ id: "phone-out-1", direction: "outbound" }, { id: "phone-2", direction: "sideways" }] });
+    expect(rows.map((r) => r.direction)).toEqual(["outbound", null]);
+  });
   it("reads a past call's transcript and gateway events, and ignores malformed ones", () => {
     const record = parseRecord({
       started: "2026-11-15T20:54:00",
@@ -81,6 +86,11 @@ describe("the call list", () => {
     expect(screen.getByText("Caller hung up", { exact: false })).toBeInTheDocument();
     expect(screen.getByText("2 of 3 passed")).toHaveClass("not_run");
     expect(screen.getAllByText("changed the appointment")).toHaveLength(2);
+  });
+  it("says which calls Emily placed", () => {
+    const rows2 = [call({ id: "phone-out-aaaaaaaa", channel: "phone", direction: "outbound" }), call({ channel: "phone", id: "phone-bbbbbbbb" })];
+    render(<CallList calls={rows2} state="ready" openId={null} onOpen={none} onRefresh={none} />);
+    expect(screen.getAllByText("Emily called")).toHaveLength(1);
   });
   it("filters by how the call came in", async () => {
     render(<CallList calls={rows} state="ready" openId={null} onOpen={none} onRefresh={none} />);
@@ -134,5 +144,52 @@ describe("opening a past call from the page", () => {
     vi.spyOn(api, "fetchCalls").mockRejectedValue(new Error("down"));
     render(<App />);
     expect(await screen.findByText(/Could not load the calls/)).toBeInTheDocument();
+  });
+});
+
+
+describe("ringing the owner's phone from the page", () => {
+  const record: CallRecord = {
+    started: "2026-11-15T20:54:00",
+    transcript: [{ id: "p0", speaker: "emily", text: "Hello, this is Emily.", final: true }],
+    audit: [],
+    ended_because: "agent_ended_call",
+    appointment_after: null,
+    checks: [{ name: "said_matches_done", verdict: "pass", detail: "" }],
+  };
+  beforeEach(() => {
+    vi.spyOn(api, "fetchCalls").mockResolvedValue([]);
+  });
+
+  it("only asks on the first click: nothing is dialled until it is confirmed", async () => {
+    const dial = vi.spyOn(api, "callMyPhone").mockResolvedValue("phone-out-aaaaaaaa");
+    render(<App />);
+    await userEvent.click(screen.getByRole("button", { name: "Call my phone" }));
+    expect(screen.getByText("Ring your phone now?")).toBeInTheDocument();
+    expect(dial).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "Call my phone" })).toBeEnabled();
+    expect(dial).not.toHaveBeenCalled();
+  });
+
+  it("dials once it is confirmed, then shows the call when it ends", async () => {
+    const dial = vi.spyOn(api, "callMyPhone").mockResolvedValue("phone-out-aaaaaaaa");
+    vi.spyOn(api, "waitForRecord").mockResolvedValue(record);
+    render(<App />);
+    await userEvent.click(screen.getByRole("button", { name: "Call my phone" }));
+    await userEvent.click(screen.getByRole("button", { name: "Yes, ring it" }));
+    expect(await screen.findByText("Hello, this is Emily.")).toBeInTheDocument();
+    expect(dial).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("All 1 checks passed.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Call my phone" })).toBeEnabled();
+  });
+
+  it("says why when the phone could not be rung, and lets the owner try again", async () => {
+    vi.spyOn(api, "callMyPhone").mockRejectedValue(new Error("no worker joined the room, so the phone was not rung"));
+    render(<App />);
+    await userEvent.click(screen.getByRole("button", { name: "Call my phone" }));
+    await userEvent.click(screen.getByRole("button", { name: "Yes, ring it" }));
+    expect(await screen.findByText(/Could not call your phone: no worker joined/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Call my phone" })).toBeEnabled();
   });
 });

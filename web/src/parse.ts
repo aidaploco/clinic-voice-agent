@@ -88,6 +88,7 @@ export function parseSummaries(value: unknown): CallSummary[] {
     rows.push({
       id: row.id,
       channel: (CHANNELS.includes(String(row.channel)) ? row.channel : "other") as Channel,
+      direction: row.direction === "outbound" ? "outbound" : null,
       started: String(row.started ?? ""),
       ended_because: String(row.ended_because ?? ""),
       appointment_after: after
