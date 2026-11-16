@@ -27,6 +27,15 @@ uv run python -m clinic_voice_agent.worker console    # talk to her in this term
 
 `console` uses your computer's microphone and speakers. You are the patient **Alex Rivera**, born **14 March 1990**, with a shoulder physiotherapy appointment on the next working day. Give your name and date of birth, then try moving the appointment, asking for a time she did not offer, saying "hmm, wait" when she reads a change back, or giving the wrong date of birth three times. Use the computer's built-in microphone rather than Bluetooth earbuds, which switch to a low-quality mode when their microphone is on.
 
+### In a browser
+
+```bash
+uv run python -m clinic_voice_agent.worker start     # terminal 1: takes the calls
+uv run python -m clinic_voice_agent.web              # terminal 2: the page, at http://127.0.0.1:8765
+```
+
+The page needs `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` in `.env` as well. It starts a call with a button, and shows the live transcript, every request the gateway allowed or refused as it happens, and the review once the call ends. It is meant to be run on your own machine: the server answers on `127.0.0.1` only, because a public address would let strangers spend your speech and model credit. A call ends after `MAX_CALL_SECONDS` (300), and once `DAILY_CALL_CAP` calls (25) have been made in a day callers are told so and hung up on.
+
 Each call writes a record to `recordings/`: the transcript, every request the gateway allowed or refused, the review of the call, the appointment afterwards, why the call ended, any service errors, and how long each reply took.
 
 To store calls in Postgres as well, start the local database and set `DATABASE_URL` (see `.env.example`). The worker creates the tables when it starts.
