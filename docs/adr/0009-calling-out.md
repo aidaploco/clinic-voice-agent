@@ -1,6 +1,6 @@
 # ADR-0009: Emily calling the owner
 
-Status: accepted, 2026-11-15. Built and tested; the refusal path is proven against LiveKit, a real outbound call is not yet (VERIFICATION O29).
+Status: accepted, 2026-11-15. Proven with a real call to the owner's phone (VERIFICATION row 40); the refusal path is proven against LiveKit.
 
 ## Context
 
@@ -25,5 +25,5 @@ Everything so far waits to be called. Calling out is different in kind: it rings
 - There is no answering-machine detection. Because only the owner's own number is dialled, a voicemail is the owner's own, but Emily would still speak to it. A real detector would be needed before dialling anyone else, and is not built.
 - A page click while another call is running ends in "no worker joined", not a second call.
 - The page cannot tell the wait for Emily from the ringing: it shows one message until the call is answered or refused.
-- Whether the network reports the callee's number on an outbound call is not known (O29); the identity check does not depend on it.
+- Whether the network reports the callee's number on an outbound call is not known (O29); the admission does not depend on it.
 - Each outbound call is billed by the telephone provider for as long as it lasts.
