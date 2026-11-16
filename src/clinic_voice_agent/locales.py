@@ -213,6 +213,20 @@ class Locale:
             rest = (", " + ", ".join(middle) if middle else "") + self.offer_last + items[-1]
         return self.offer.format(first=items[0], rest=rest)
 
+    def cancel_sentence(self, treatment: str, doctor: str, when: datetime, now: datetime) -> str:
+        return self.cancel.format(
+            treatment=self.treatment(treatment),
+            practitioner=self.practitioner(doctor),
+            at=self.when(when, now, "at"),
+        )
+
+    def confirm_sentence(self, treatment: str, doctor: str, when: datetime, now: datetime) -> str:
+        return self.confirm.format(
+            treatment=self.treatment(treatment),
+            practitioner=self.practitioner(doctor),
+            at=self.when(when, now, "at"),
+        )
+
     def move_sentence(
         self,
         treatment: str,

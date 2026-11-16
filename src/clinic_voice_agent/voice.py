@@ -6,6 +6,11 @@ an agent who has stopped talking mid-call. So the providers are tried in order
 and the next one takes over when one fails.
 """
 
+from collections.abc import AsyncIterable
+from typing import Any
+
+from livekit import rtc
+from livekit.agents import stt as stt_module
 from livekit.agents import tts
 from livekit.plugins import deepgram, elevenlabs, openai
 
@@ -68,13 +73,95 @@ def build_tts(settings: Settings) -> tts.TTS:
     return tts.FallbackAdapter(voices, max_retry_per_tts=0)
 
 
-def build_stt(settings: Settings):
+def build_stt(settings: Settings, language: str = "multi"):
+    """The transcriber the session starts with. The first step listens in Deepgram's multilingual
+    mode, because its callers answer a menu of four languages: with English alone, a Spanish or
+    Dutch sentence comes back as nonsense and a Bosnian one as nothing (measured, ADR-0011)."""
     return deepgram.STT(
         model=settings.stt_model,
-        language="en-US",
+        language=language,
         api_key=settings.deepgram_api_key.get_secret_value(),
     )
 
 
 def build_llm(settings: Settings):
     return openai.LLM(model=settings.llm_model, api_key=settings.openai_api_key.get_secret_value())
+
+
+# The Deepgram voice for each language that has one, and how to word the instruction OpenAI's
+# voice is given. Bosnian has no Deepgram voice, so OpenAI's speaks it.
+DEEPGRAM_VOICES = {"es": "aura-2-estrella-es", "nl": "aura-2-beatrix-nl"}
+DEEPGRAM_LISTEN = {"en": "en-US", "es": "es-MX", "nl": "nl-NL"}
+BOSNIAN_HINT = "Razgovor na bosanskom jeziku. Pišite latinicom."  # left alone it writes Cyrillic
+
+
+class Voices:
+    """The speech services of each language, built when a language is first needed.
+
+    Satisfies `flow.Voices`. English keeps what the session already has, apart from listening in
+    English alone once the language is known; Spanish and Dutch use Deepgram to hear and speak
+    (with OpenAI as the backup voice); Bosnian uses OpenAI to hear, with a hint to write in
+    Latin script, and to speak (ADR-0010).
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        self._settings = settings
+        self._ears: dict[str, stt_module.STT] = {}
+        self._mouths: dict[str, tts.TTS | None] = {}
+
+    def _ear(self, language: str) -> stt_module.STT:
+        if language not in self._ears:
+            if language == "bs":
+                self._ears[language] = openai.STT(
+                    model="gpt-4o-transcribe",
+                    language="bs",
+                    prompt=BOSNIAN_HINT,
+                    api_key=self._settings.openai_api_key.get_secret_value(),
+                )
+            else:
+                self._ears[language] = build_stt(self._settings, DEEPGRAM_LISTEN[language])
+        return self._ears[language]
+
+    def _mouth(self, language: str) -> tts.TTS | None:
+        """The voice for a language, or None to keep the session's own (English)."""
+        if language not in self._mouths:
+            key = self._settings.openai_api_key.get_secret_value()
+            style = f"Speak {language_name(language)}, calmly and clearly, like a receptionist."
+            backup = openai.TTS(
+                model="gpt-4o-mini-tts",
+                voice=self._settings.openai_tts_voice,
+                instructions=style,
+                api_key=key,
+            )
+            if language == "en":
+                self._mouths[language] = None
+            elif language in DEEPGRAM_VOICES:
+                first = deepgram.TTS(
+                    model=DEEPGRAM_VOICES[language],
+                    api_key=self._settings.deepgram_api_key.get_secret_value(),
+                )
+                self._mouths[language] = tts.FallbackAdapter([first, backup], max_retry_per_tts=0)
+            else:
+                self._mouths[language] = backup
+        return self._mouths[language]
+
+    def agent_args(self, language: str) -> dict[str, Any]:
+        args: dict[str, Any] = {"stt": self._ear(language)}
+        if (mouth := self._mouth(language)) is not None:
+            args["tts"] = mouth
+        return args
+
+    def menu_audio(self, language: str, text: str) -> AsyncIterable[rtc.AudioFrame]:
+        mouth = self._mouth(language) or build_tts(self._settings)
+
+        async def frames() -> AsyncIterable[rtc.AudioFrame]:
+            async for chunk in mouth.synthesize(text):
+                yield chunk.frame
+
+        return frames()
+
+
+def language_name(code: str) -> str:
+    from clinic_voice_agent.locales import locale_of
+
+    return locale_of(code).llm_language

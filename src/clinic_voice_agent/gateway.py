@@ -28,7 +28,7 @@ from datetime import date, datetime
 from typing import Any, Literal, Protocol
 
 from clinic_voice_agent.clinic import Appointment, Clinic, ClinicError, Patient, Slot
-from clinic_voice_agent.spoken import say_when
+from clinic_voice_agent.locales import locale_of
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +106,9 @@ class Gateway:
         self._identity_attempts = 0
         self._offers: dict[str, Slot] = {}
         self._pending: Proposal | None = None
+        # The language this call is in. Everything the gateway words for the caller (a time, a
+        # read-back) is in it; a tool may change it during the call.
+        self.language = "en"
         self.audit: list[AuditEvent] = []
         # Told of each audit event as it happens. Nothing by default; the worker sets it so a
         # browser page can show the gateway's decisions live. It must never affect a call.
@@ -168,7 +171,8 @@ class Gateway:
         for slot in self._clinic.free_slots():
             offer_id = known.get(slot.id) or f"option-{secrets.token_hex(2)}"
             self._offers[offer_id] = slot
-            offers.append(Offer(offer_id, say_when(slot.start, self._now), slot.practitioner))
+            when = locale_of(self.language).when(slot.start, self._now, "at")
+            offers.append(Offer(offer_id, when, slot.practitioner))
         self._allow("offer_slots", offers=[offer.id for offer in offers])
         return offers
 
@@ -178,8 +182,7 @@ class Gateway:
         """Prepare a change and the sentence to read back. Changes nothing."""
         self._require("propose_change")
         appointment = self._current_appointment("propose_change")
-        was = f"{appointment.treatment} with {appointment.practitioner}"
-        when = say_when(appointment.start, self._now)
+        locale = locale_of(self.language)
         slot_id = None
         if kind == "move":
             slot = self._offers.get(offer_id or "")
@@ -193,14 +196,20 @@ class Gateway:
                     offer=offer_id,
                 )
             slot_id = slot.id
-            read_back = (
-                f"I'll move your {was} from {when} to {say_when(slot.start, self._now)} "
-                f"with {slot.practitioner}. Is that right?"
+            read_back = locale.move_sentence(
+                appointment.treatment,
+                (appointment.start, appointment.practitioner),
+                (slot.start, slot.practitioner),
+                self._now,
             )
         elif kind == "cancel":
-            read_back = f"I'll cancel your {was} {when}. Is that right?"
+            read_back = locale.cancel_sentence(
+                appointment.treatment, appointment.practitioner, appointment.start, self._now
+            )
         elif kind == "confirm":
-            read_back = f"I'll put you down as coming to your {was} {when}. Is that right?"
+            read_back = locale.confirm_sentence(
+                appointment.treatment, appointment.practitioner, appointment.start, self._now
+            )
         else:
             raise self._refuse("propose_change", "unknown_change", "There is no such change.")
         self._pending = Proposal(

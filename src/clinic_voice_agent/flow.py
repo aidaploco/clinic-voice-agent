@@ -9,26 +9,31 @@ identity check, because the agent that owns them has not been created.
 The tools here are thin. What a call is allowed to do is decided by the
 gateway (`clinic_voice_agent.gateway`); a tool passes the request on and turns
 a refusal into something the model can act on.
+
+A call is in one language at a time (`gateway.language`). Switching it hands the call to a new
+step of the same kind that listens and speaks in the new language: each agent can carry its own
+speech-to-text and text-to-speech. The services are given through `CallState.voices`; without
+them (the text tests and the evals) the steps use whatever the session has, and no language
+menu is spoken.
 """
 
+from collections.abc import AsyncIterable
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Literal
+from typing import Any, Literal, Protocol
 
+from livekit import rtc
 from livekit.agents import Agent, RunContext, ToolError, function_tool
 from livekit.agents.beta.tools import EndCallTool
 from livekit.agents.llm import ToolResult
 
 from clinic_voice_agent.gateway import Gateway, Offer, Refused
-from clinic_voice_agent.spoken import say_when
+from clinic_voice_agent.locales import AGENT_NAME, CLINIC_NAME, LOCALES, locale_of
 
-CLINIC_NAME = "Quillbrook Physio"
-AGENT_NAME = "Emily"
-
-GREETING = (
-    f"Thank you for calling {CLINIC_NAME}. This is {AGENT_NAME}, the clinic's automated "
-    "receptionist. May I have your full name, please?"
-)
+# English, as before; kept under these names for the code and tests that use them.
+GREETING = LOCALES["en"].greeting
+OUTBOUND_GREETING = LOCALES["en"].outbound_greeting
+LanguageCode = Literal["en", "es", "nl", "bs"]
 
 STYLE = f"""\
 You are {AGENT_NAME}, the automated phone receptionist at {CLINIC_NAME}, a physiotherapy \
@@ -46,12 +51,49 @@ cut off or make no sense, say you did not catch it and ask again. Never guess.
 """
 
 
+def style(language: str) -> str:
+    """The way of speaking, and which language to speak it in (English needs no note)."""
+    locale = locale_of(language)
+    if locale.code == "en":
+        return STYLE
+    return (
+        STYLE + f"\nThe call is in {locale.llm_language}. Everything you say to the caller is in "
+        f"{locale.llm_language}, in the same short style. Say times exactly as the tools give "
+        "them, in that language.\n"
+    )
+
+
+SWITCHING = """\
+- The caller may speak a language other than the one you are using, or ask for one. You can use \
+English, Spanish, Dutch and Bosnian. As soon as they do, call `switch_language` with that \
+language and say nothing else: the next step greets them in it. What they say may reach you \
+badly transcribed, because it was heard in the wrong language; if the words look like Spanish, \
+Dutch or Bosnian, or like the name of one of them ("espanol", "nederlands", "bosanski"), \
+switch.
+"""
+
+
+class Voices(Protocol):
+    """The speech services of each language, passed in so this module builds none of them."""
+
+    def agent_args(self, language: str) -> dict[str, Any]:
+        """Keyword arguments for an `Agent` that listens and speaks in `language`."""
+
+    def menu_audio(self, language: str, text: str) -> AsyncIterable[rtc.AudioFrame]:
+        """`text` spoken in the voice of `language`, as audio frames."""
+
+
 @dataclass
 class CallState:
     """What this one call knows. Shared by every step of the flow."""
 
     gateway: Gateway
     now: datetime
+    voices: Voices | None = None
+
+    @property
+    def language(self) -> str:
+        return self.gateway.language
 
 
 def _end_call() -> EndCallTool:
@@ -68,24 +110,42 @@ def _what_the_caller_said(ctx: RunContext[CallState]) -> tuple[int, str]:
     return len(said), (said[-1] if said else "")
 
 
-OUTBOUND_GREETING = (
-    "Hello, this is Emily, the automated assistant at Quillbrook Physio, calling about an "
-    "appointment. May I have your full name, please?"
-)
+def opening_line(direction: str, language: str = "en") -> str:
+    """What is said first: the clinic's greeting, or who is calling when Emily placed the call.
+
+    On a call Emily placed she says who is calling and that it is about an appointment, and
+    nothing more: the person who picked up may not be the patient.
+    """
+    locale = locale_of(language)
+    return locale.outbound_greeting if direction == "outbound" else locale.greeting
 
 
-def opening_line(direction: str) -> str:
-    """What is said first: the clinic's greeting, or who is calling when Emily placed the call."""
-    return OUTBOUND_GREETING if direction == "outbound" else GREETING
+def _voice_args(state: CallState | None, language: str) -> dict[str, Any]:
+    return state.voices.agent_args(language) if state and state.voices else {}
 
 
 class IdentifyCaller(Agent):
-    """Step one: find out who is calling. Nothing about any appointment is known here."""
+    """Step one: find out who is calling. Nothing about any appointment is known here.
 
-    def __init__(self, direction: str = "inbound") -> None:
+    The first one is entered by the greeting and the language menu, in English. A switch of
+    language enters a new one (`switched`), which carries on in that language and keeps a name
+    already given.
+    """
+
+    def __init__(
+        self,
+        direction: str = "inbound",
+        language: str = "en",
+        name: str = "",
+        switched: bool = False,
+        state: CallState | None = None,
+    ) -> None:
         self._direction = direction
+        self._language = language
+        self._switched = switched
+        self._state = state
         super().__init__(
-            instructions=STYLE
+            instructions=style(language)
             + """
 Right now you do not know who is calling, and you know nothing about any appointment.
 - You need two things: the caller's full name and their date of birth. Ask for whichever \
@@ -102,17 +162,42 @@ end the call.
 - Use `take_message` only when the caller has asked you to pass something on, and only once \
 for each thing they ask.
 - Do not discuss appointments, times or practitioners in this step, whatever the caller says.
-""",
+"""
+            + SWITCHING,
             tools=[_end_call()],
+            **(_voice_args(state, language) if switched else {}),
         )
-        self._name = ""
+        self._name = name
 
     async def on_enter(self) -> None:
+        locale = locale_of(self._language)
+        if self._switched:
+            # In the new language, from where the call had got to: no greeting again.
+            self.session.say(locale.ask_dob if self._name else locale.ask_name)
+            return
         # A fixed greeting, not a generated one: the first thing a caller hears
         # should be the same every time, and it should be fast.
-        # On a call Emily placed she says who is calling and that it is about an appointment, and
-        # nothing more: the person who picked up may not be the patient.
-        self.session.say(opening_line(self._direction))
+        self.session.say(opening_line(self._direction, self._language))
+        # Then, with voices to speak them, one line for each other language in its own voice.
+        if self._state is not None and self._state.voices is not None:
+            for code, other in LOCALES.items():
+                if code != self._language and other.menu:
+                    audio = self._state.voices.menu_audio(code, other.menu)
+                    self.session.say(other.menu, audio=audio)
+
+    @function_tool
+    async def switch_language(self, ctx: RunContext[CallState], language: LanguageCode):
+        """Continue the call in another language. Say nothing yourself: the next step does.
+
+        Args:
+            language: "en" English, "es" Mexican Spanish, "nl" Dutch or "bs" Bosnian.
+        """
+        if language == self._language:
+            return "Already speaking that language. Carry on."
+        ctx.userdata.gateway.language = language
+        return IdentifyCaller(
+            self._direction, language, self._name, switched=True, state=ctx.userdata
+        )
 
     @function_tool
     async def caller_gave_name(self, ctx: RunContext[CallState], full_name: str) -> str:
@@ -155,7 +240,7 @@ for each thing they ask.
             raise ToolError(str(refused)) from None
         # Returning the next step hands the call over to it. Nothing is said
         # here: the new step opens by itself, so the caller hears one reply.
-        return HelpWithAppointment(ctx.userdata)
+        return HelpWithAppointment(ctx.userdata, self._language)
 
     @function_tool
     async def take_message(self, ctx: RunContext[CallState], caller_name: str, message: str) -> str:
@@ -169,35 +254,32 @@ for each thing they ask.
         return "The message has been passed to the clinic team."
 
 
-def offer_sentence(offers: list[Offer]) -> str:
+def offer_sentence(offers: list[Offer], language: str = "en") -> str:
     """The sentence that offers the free times. Code words it, so no second model call is needed."""
-    names = {offer.practitioner for offer in offers}
-    times = [
-        offer.when if len(names) == 1 else f"{offer.when} with {offer.practitioner}"
-        for offer in offers
-    ]
-    listed = times[0] if len(times) == 1 else ", ".join(times[:-1]) + f", or {times[-1]}"
-    return f"I can offer you {listed}. Which would you like?"
+    return locale_of(language).offer_sentence([(o.when, o.practitioner) for o in offers])
 
 
 class HelpWithAppointment(Agent):
     """Step two: the caller has passed the identity check. Their appointment can be changed."""
 
-    def __init__(self, state: CallState) -> None:
+    def __init__(self, state: CallState, language: str = "en", switched: bool = False) -> None:
         patient = state.gateway.patient
         if patient is None:
             raise ValueError("this step exists only after the caller has been identified")
         self._first_name = patient.first_name
+        self._language = language
+        self._switched = switched
         appointment = state.gateway.appointment()
+        locale = locale_of(language)
         if appointment is None:
             about = "They have no upcoming appointment. You can only take a message."
         else:
             about = (
                 f"Their upcoming appointment: {appointment.treatment} with "
-                f"{appointment.practitioner}, {say_when(appointment.start, state.now)}."
+                f"{appointment.practitioner}, {locale.when(appointment.start, state.now, 'at')}."
             )
         super().__init__(
-            instructions=STYLE
+            instructions=style(language)
             + f"""
 You are speaking with {patient.full_name}, a registered patient whose identity has been \
 checked. {about}
@@ -221,17 +303,41 @@ it. Call `propose_change` with "confirm" only when the caller has asked to confi
 they are coming. Never start a change as the call is ending.
 - For anything else, take a message with `take_message`.
 - When the caller has what they need, say what was done in one sentence and end the call.
-""",
+"""
+            + SWITCHING,
             tools=[_end_call()],
+            **_voice_args(state, language),
         )
 
     async def on_enter(self) -> None:
+        locale = locale_of(self._language)
+        if self._switched:
+            self.session.generate_reply(
+                instructions=(
+                    f"The caller has asked to continue in {locale.llm_language}. In that "
+                    "language, say briefly that you will, and carry on from where the "
+                    "conversation was. Do not greet them again."
+                )
+            )
+            return
         self.session.generate_reply(
             instructions=(
                 f"Greet {self._first_name} by first name, say which appointment you "
                 "can see for them (treatment, practitioner, when), and ask how you can help."
             )
         )
+
+    @function_tool
+    async def switch_language(self, ctx: RunContext[CallState], language: LanguageCode):
+        """Continue the call in another language. Say nothing yourself: the next step does.
+
+        Args:
+            language: "en" English, "es" Mexican Spanish, "nl" Dutch or "bs" Bosnian.
+        """
+        if language == self._language:
+            return "Already speaking that language. Carry on."
+        ctx.userdata.gateway.language = language
+        return HelpWithAppointment(ctx.userdata, language, switched=True)
 
     @function_tool
     async def find_free_slots(self, ctx: RunContext[CallState]) -> ToolResult:
@@ -242,7 +348,7 @@ they are coming. Never start a change as the call is ending.
             raise ToolError(str(refused)) from None
         if not offers:
             raise ToolError("There are no free times. Offer to take a message for the clinic team.")
-        ctx.session.say(offer_sentence(offers))
+        ctx.session.say(offer_sentence(offers, self._language))
         return ToolResult(
             [
                 {"option": offer.id, "when": offer.when, "practitioner": offer.practitioner}
@@ -287,9 +393,9 @@ they are coming. Never start a change as the call is ending.
             raise ToolError(str(refused)) from None
         if appointment.status == "cancelled":
             return "Done. The appointment is cancelled."
+        when = locale_of(state.language).when(appointment.start, state.now, "at")
         return (
-            f"Done. The appointment is {say_when(appointment.start, state.now)} with "
-            f"{appointment.practitioner}, and it is confirmed."
+            f"Done. The appointment is {when} with {appointment.practitioner}, and it is confirmed."
         )
 
     @function_tool

@@ -10,9 +10,6 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime
 from pathlib import Path
 
-TIME_LIMIT_GOODBYE = "I'm sorry, we've reached the time limit for this call. Goodbye."
-SILENCE_GOODBYE = "I haven't heard anything, so I'll end the call now. Goodbye."
-DEAF_GOODBYE = "I'm sorry, I can't hear you properly. Please try calling again. Goodbye."
 CAP_REACHED = (
     "Thank you for calling Quillbrook Physio. We can't take any more calls today. "
     "Please try again tomorrow. Goodbye."

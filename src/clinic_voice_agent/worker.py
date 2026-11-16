@@ -26,6 +26,7 @@ from clinic_voice_agent.flow import CallState, IdentifyCaller
 from clinic_voice_agent.gateway import Gateway
 from clinic_voice_agent.hearing import DeafnessWatch
 from clinic_voice_agent.latency import latency_of
+from clinic_voice_agent.locales import locale_of
 from clinic_voice_agent.outbound import direction_of
 from clinic_voice_agent.privacy import call_id_for
 from clinic_voice_agent.settings import get_settings
@@ -141,8 +142,9 @@ async def handle_call(ctx: JobContext) -> None:
     gateway.on_event = live.event_publisher(
         lambda text, topic: ctx.room.local_participant.send_text(text, topic=topic)
     )
+    state = CallState(gateway=gateway, now=started, voices=voice.Voices(settings))
     session = AgentSession[CallState](
-        userdata=CallState(gateway=gateway, now=started),
+        userdata=state,
         vad=ctx.proc.userdata["vad"],
         stt=voice.build_stt(settings),
         llm=llm,
@@ -172,7 +174,7 @@ async def handle_call(ctx: JobContext) -> None:
 
     async def say_time_limit_goodbye() -> None:
         ending.setdefault("why", "time_limit")
-        await session.say(limits.TIME_LIMIT_GOODBYE)
+        await session.say(locale_of(gateway.language).time_limit_goodbye)
 
     time_limit = asyncio.create_task(
         limits.hang_up_after(settings.max_call_seconds, say_time_limit_goodbye, ctx.delete_room)
@@ -203,7 +205,7 @@ async def handle_call(ctx: JobContext) -> None:
             logger.info(
                 "the line has been silent for %s seconds; ending the call", settings.silence_seconds
             )
-            end_call("silence", limits.SILENCE_GOODBYE)
+            end_call("silence", locale_of(gateway.language).silence_goodbye)
 
     def on_words(event: Any) -> None:
         if event.is_final and event.transcript.strip():
@@ -215,7 +217,7 @@ async def handle_call(ctx: JobContext) -> None:
             errors.append(
                 {"service": "STT", "error": "no transcript after speech", "recoverable": False}
             )
-            end_call("stt_silent", limits.DEAF_GOODBYE)
+            end_call("stt_silent", locale_of(gateway.language).deaf_goodbye)
 
     def on_close(event: Any) -> None:
         time_limit.cancel()
@@ -264,7 +266,7 @@ async def handle_call(ctx: JobContext) -> None:
 
     ctx.add_shutdown_callback(write_record)
 
-    await session.start(agent=IdentifyCaller(direction), room=ctx.room)
+    await session.start(agent=IdentifyCaller(direction, state=state), room=ctx.room)
 
 
 if __name__ == "__main__":

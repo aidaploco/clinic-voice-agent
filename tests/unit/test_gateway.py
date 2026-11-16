@@ -275,3 +275,32 @@ async def test_an_observer_hears_each_audit_event_and_its_failure_never_reaches_
     gateway.on_event = broken
     gateway.offer_slots()  # must not raise
     assert gateway.audit[-1].operation == "offer_slots"
+
+
+def test_the_gateways_offers_and_read_backs_are_in_the_calls_language_and_follow_a_switch():
+    g = verified()
+    english = g.offer_slots()[0].when
+    g.language = "es"
+    spanish = g.offer_slots()[0].when
+    assert english != spanish and "a las" in spanish
+    offer = g.offer_slots()[0]
+    proposal = g.propose("move", caller_turn=1, offer_id=offer.id)
+    assert proposal.read_back.startswith(
+        "Voy a cambiar su fisioterapia de hombro con el doctor Okafor"
+    )
+    assert proposal.read_back.endswith("¿Es correcto?")
+    g.language = "bs"
+    assert g.propose("cancel", caller_turn=2).read_back.startswith(
+        "Otkazat ću vaš termin za fizioterapiju ramena"
+    )
+
+
+async def test_a_change_read_back_in_spanish_is_committed_on_a_spanish_yes():
+    g = verified()
+    g.language = "es"
+    g.propose("confirm", caller_turn=1)
+    appointment = await g.commit(caller_turn=2, caller_words="Sí, correcto.")
+    assert appointment.status == "confirmed"
+    # the consent check was shown the Spanish question and the Spanish reply, and nothing else
+    asked = g._consent.asked[-1]
+    assert "¿Es correcto?" in asked[0] and asked[1] == "Sí, correcto."
