@@ -163,7 +163,7 @@ async def test_a_change_is_proposed_read_back_and_committed_after_a_yes():
     call = verified()
     thursday = call.offer_slots()[1]
     proposal = call.propose("move", caller_turn=3, offer_id=thursday.id)
-    assert "Thursday at 4:30 PM" in proposal.read_back
+    assert "Thursday at four thirty in the afternoon" in proposal.read_back
     assert call.appointment().start == datetime(2026, 11, 17, 15, 30)  # nothing yet
 
     moved = await call.commit(caller_turn=4, caller_words="Yes please.")

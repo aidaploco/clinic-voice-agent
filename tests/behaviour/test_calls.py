@@ -102,7 +102,9 @@ async def test_a_patient_moves_their_appointment_and_the_yes_is_on_record():
     committed = [e for e in call.gateway.audit if e.operation == "commit_change"][-1]
     assert committed.outcome == "allowed"
     assert committed.details["confirmation"]["said"] == "Yes, that's right."
-    assert "Thursday at 4:30 PM" in committed.details["confirmation"]["read_back"]
+    assert (
+        "Thursday at four thirty in the afternoon" in committed.details["confirmation"]["read_back"]
+    )
     assert await call.review() == {
         "changes_follow_identity": "pass",
         "changes_were_confirmed": "pass",

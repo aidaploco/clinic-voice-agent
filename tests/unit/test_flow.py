@@ -51,7 +51,7 @@ def test_the_appointment_step_knows_only_this_patients_appointment():
     }
     text = str(step.instructions)
     assert "Alex Rivera" in text and "shoulder physiotherapy" in text
-    assert "tomorrow at 3:30 PM" in text and "1990" not in text
+    assert "tomorrow at three thirty in the afternoon" in text and "1990" not in text
 
 
 def test_the_identify_step_is_told_nothing_about_any_patient():

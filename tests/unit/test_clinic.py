@@ -77,8 +77,33 @@ def test_a_cancelled_appointment_cannot_be_changed_and_is_no_longer_upcoming():
 
 
 def test_times_are_said_the_way_people_say_them():
-    assert say_when(datetime(2026, 11, 17, 15, 30), NOW) == "tomorrow at 3:30 PM"
-    assert say_when(datetime(2026, 11, 19, 9, 0), NOW) == "Thursday at 9 AM"
-    assert say_when(datetime(2026, 11, 16, 12, 5), NOW) == "today at 12:05 PM"
-    assert say_when(datetime(2026, 11, 23, 0, 15), NOW) == "Monday the 23rd at 12:15 AM"
-    assert say_when(datetime(2026, 12, 11, 14, 0), NOW) == "Friday the 11th at 2 PM"
+    assert (
+        say_when(datetime(2026, 11, 17, 15, 30), NOW) == "tomorrow at three thirty in the afternoon"
+    )
+    assert say_when(datetime(2026, 11, 19, 9, 0), NOW) == "Thursday at nine in the morning"
+    assert (
+        say_when(datetime(2026, 11, 16, 12, 5), NOW) == "today at twelve oh five in the afternoon"
+    )
+    assert (
+        say_when(datetime(2026, 11, 23, 0, 15), NOW)
+        == "Monday the 23rd at twelve fifteen in the morning"
+    )
+    assert say_when(datetime(2026, 12, 11, 14, 0), NOW) == "Friday the 11th at two in the afternoon"
+
+
+def test_a_time_is_spoken_in_words_with_no_digit_and_colon():
+    from clinic_voice_agent.spoken import say_clock
+
+    cases = {
+        (9, 0): "nine in the morning", (10, 30): "ten thirty in the morning",
+        (12, 0): "noon", (0, 0): "midnight", (16, 30): "four thirty in the afternoon",
+        (15, 45): "three forty five in the afternoon", (18, 15): "six fifteen in the evening",
+        (13, 5): "one oh five in the afternoon", (21, 20): "nine twenty at night",
+        (11, 59): "eleven fifty nine in the morning",
+    }  # fmt: skip
+    for (hour, minute), spoken in cases.items():
+        assert say_clock(datetime(2026, 11, 17, hour, minute)) == spoken
+    for hour in range(24):
+        for minute in range(60):
+            text = say_clock(datetime(2026, 11, 17, hour, minute))
+            assert not any(ch.isdigit() for ch in text), text
