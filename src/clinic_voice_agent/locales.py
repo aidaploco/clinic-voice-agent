@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from clinic_voice_agent import spoken
+from clinic_voice_agent.choice import key_for
 
 CLINIC_NAME = "Quillbrook Physio"
 AGENT_NAME = "Emily"
@@ -181,7 +182,7 @@ class Locale:
     llm_language: str  # what the model is told to speak
     greeting: str  # the first thing said on a call that came in; ends by asking for the name
     outbound_greeting: str
-    menu: str  # said in this language's own voice, offering to continue in it
+    menu: str  # said in this language's own voice; `{keypad}` is where the keypad cue may go
     ask_name: str  # first words after switching to this language, before the name is known
     ask_dob: str  # ... after the name is known
     time_limit_goodbye: str
@@ -198,6 +199,12 @@ class Locale:
     when: Callable[[datetime, datetime, str], str]
     treatment: Callable[[str], str]
     practitioner: Callable[[str], str]
+    keypad: str = ""  # " or press {digit}", in this language: added to the menu line on a phone
+
+    def menu_line(self, phone: bool) -> str:
+        """The line that offers this language. On a phone it also says which key to press."""
+        cue = self.keypad.format(digit=key_for(self.code)) if phone else ""
+        return self.menu.format(keypad=cue)
 
     def offer_sentence(self, times: list[tuple[str, str]]) -> str:
         """The sentence offering `times`, each as (when, practitioner), as said to a caller."""
@@ -289,7 +296,8 @@ LOCALES: dict[str, Locale] = {
             f"Hola, le habla {AGENT_NAME}, la asistente automática de {CLINIC_NAME}. Le llamo por "
             "una cita. ¿Me puede dar su nombre completo, por favor?"
         ),
-        menu="Para continuar en español, diga español.",
+        menu="Para continuar en español, diga español{keypad}.",
+        keypad=" o pulse el {digit}",
         ask_name="Claro, continuamos en español. ¿Me puede dar su nombre completo, por favor?",
         ask_dob="Gracias. ¿Y su fecha de nacimiento, por favor?",
         time_limit_goodbye="Lo siento, hemos llegado al límite de tiempo de esta llamada. Adiós.",
@@ -318,7 +326,8 @@ LOCALES: dict[str, Locale] = {
             f"Hallo, u spreekt met {AGENT_NAME}, de automatische assistent van {CLINIC_NAME}. Ik "
             "bel over een afspraak. Mag ik uw volledige naam, alstublieft?"
         ),
-        menu="Voor Nederlands, zeg Nederlands.",
+        menu="Voor Nederlands, zeg Nederlands{keypad}.",
+        keypad=" of druk op de {digit}",
         ask_name="Prima, we gaan verder in het Nederlands. Mag ik uw volledige naam, alstublieft?",
         ask_dob="Dank u. En uw geboortedatum, alstublieft?",
         time_limit_goodbye="Het spijt me, we hebben de tijdslimiet van dit gesprek bereikt. Tot ziens.",
@@ -347,7 +356,8 @@ LOCALES: dict[str, Locale] = {
             f"Dobar dan, ovdje {AGENT_NAME}, automatska asistentica klinike {CLINIC_NAME}. Zovem "
             "zbog termina. Možete li mi reći svoje puno ime, molim vas?"
         ),
-        menu="Za bosanski, recite bosanski.",
+        menu="Za bosanski, recite bosanski{keypad}.",
+        keypad=" ili pritisnite {digit}",
         ask_name="U redu, nastavljamo na bosanskom. Možete li mi reći svoje puno ime, molim vas?",
         ask_dob="Hvala. A vaš datum rođenja, molim vas?",
         time_limit_goodbye="Žao mi je, dostigli smo vremensko ograničenje ovog poziva. Doviđenja.",

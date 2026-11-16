@@ -2,7 +2,7 @@
 
 A phone receptionist for a fictional physiotherapy clinic, built on [LiveKit Agents](https://docs.livekit.io/agents/). Patients call, or are called, to confirm, move or cancel an appointment. She checks who is calling, changes the clinic's records only through a gateway that enforces the rules in code, and every call is recorded and reviewed afterwards. Simulated callers grade her in CI, and a browser page shows what she did and why.
 
-> **This is a demo project.** "Quillbrook Physio" and its receptionist "Emily" are fictional, and every patient, appointment and slot is invented data. The identity check (name and date of birth) is demo-grade. Only the owner's own phone number may call in or be called, and the page runs on your own machine: do not expose it publicly, because every call spends speech and model credit. English, Mexican Spanish, Dutch and Bosnian; the spoken menu has been tested in code and text, not yet in a live call.
+> **This is a demo project.** "Quillbrook Physio" and its receptionist "Emily" are fictional, and every patient, appointment and slot is invented data. The identity check (name and date of birth) is demo-grade. Only the owner's own phone number may call in or be called, and the page runs on your own machine: do not expose it publicly, because every call spends speech and model credit. English, Mexican Spanish, Dutch and Bosnian; the language menu is tested with scripted audio callers, and not yet with a person on a phone line.
 
 ![The page after a call that came in by phone: the transcript, the gateway's four decisions with the exact question asked before the change, the review, and the list of earlier calls](docs/images/page.png)
 
@@ -126,6 +126,7 @@ src/clinic_voice_agent/
   gateway.py        the rules: identity, capability, offers, propose and commit, audit
   flow.py           the conversation: identify the caller, then help with the appointment
   locales.py        the wording and spoken times in each language
+  menu.py choice.py the language menu, decided in code, and reading a choice
   worker.py         one call: admission, limits, the session, the record
   consent.py        the independent yes-check        review.py   the post-call review
   outbound.py       placing a call, and every reason not to
@@ -143,7 +144,7 @@ Dockerfile, compose.yaml
 
 ## Known limitations
 
-- **Four languages, only English proven live.** The spoken menu and the switch are tested in code and in text evals; the speech handoff, the Bosnian voice on a phone line and the draft lines are not yet checked ([ADR-0011](docs/adr/0011-languages-in-a-call.md)).
+- **Four languages, only English proven live.** The language menu (say it or press a key) works with scripted audio callers and in text evals; a person on a phone line, the Bosnian voice there, and the draft lines are not yet checked ([ADR-0011](docs/adr/0011-languages-in-a-call.md)).
 - **About two seconds to reply.** Nearly every turn runs the model twice, once to pick the tool and once to word the answer. Two tools speak their own line to skip the second call.
 - **No answering-machine detection.** Only the owner's own number is dialled, so a voicemail is theirs, but Emily would still speak to it.
 - **At the concurrency cap the next caller waits in silence** until a call ends, rather than being told the line is busy.

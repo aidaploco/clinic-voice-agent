@@ -41,7 +41,13 @@ def rows(lc: Locale) -> list[tuple[str, str, bool]]:
     return [
         ("greeting, inbound", lc.greeting, False),
         ("greeting, outbound", lc.outbound_greeting, True),
-        ("menu line, spoken in its own voice", lc.menu or "(none: English is the greeting)", True),
+        (
+            "menu line, spoken in its own voice",
+            (lc.menu_line(False) + "  |  on a phone: " + lc.menu_line(True))
+            if lc.menu
+            else "(none: English is the greeting)",
+            True,
+        ),
         ("after switching: asks for the name", lc.ask_name, True),
         ("after switching: asks for the date of birth", lc.ask_dob, False),
         ("offer, same doctor", lc.offer_sentence(same_doctor), False),

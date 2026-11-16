@@ -31,6 +31,7 @@ def call_record(
     errors: list[dict[str, Any]] | None = None,
     checks: list[dict[str, str]] | None = None,
     direction: str | None = None,
+    timeline: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     patient = gateway.patient
     appointment = clinic.last_known_appointment(patient.id) if patient else None
@@ -55,6 +56,7 @@ def call_record(
         },
         "messages": [m.text for m in clinic.messages],
         "latency_seconds": latency or {},
+        "timeline": timeline or [],
         "transcript": transcript,
     }
 

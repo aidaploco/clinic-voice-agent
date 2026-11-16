@@ -6,6 +6,7 @@ an agent who has stopped talking mid-call. So the providers are tried in order
 and the next one takes over when one fails.
 """
 
+import asyncio
 from collections.abc import AsyncIterable
 from typing import Any
 
@@ -92,6 +93,7 @@ def build_llm(settings: Settings):
 # voice is given. Bosnian has no Deepgram voice, so OpenAI's speaks it.
 DEEPGRAM_VOICES = {"es": "aura-2-estrella-es", "nl": "aura-2-beatrix-nl"}
 DEEPGRAM_LISTEN = {"en": "en-US", "es": "es-MX", "nl": "nl-NL"}
+MENU_HINT = "The caller chooses a language: English, español, Nederlands or bosanski."
 BOSNIAN_HINT = "Razgovor na bosanskom jeziku. Pišite latinicom."  # left alone it writes Cyrillic
 
 
@@ -108,10 +110,20 @@ class Voices:
         self._settings = settings
         self._ears: dict[str, stt_module.STT] = {}
         self._mouths: dict[str, tts.TTS | None] = {}
+        self._clips: dict[tuple[str, str], list[rtc.AudioFrame]] = {}
 
     def _ear(self, language: str) -> stt_module.STT:
         if language not in self._ears:
-            if language == "bs":
+            if language == "menu":
+                # Four languages in one word each, on a phone line: measured, this one hears them
+                # best when told which names to expect (scripts/choice_probe.py, ADR-0011).
+                self._ears[language] = openai.STT(
+                    model="gpt-4o-transcribe",
+                    detect_language=True,
+                    prompt=MENU_HINT,
+                    api_key=self._settings.openai_api_key.get_secret_value(),
+                )
+            elif language == "bs":
                 self._ears[language] = openai.STT(
                     model="gpt-4o-transcribe",
                     language="bs",
@@ -133,7 +145,7 @@ class Voices:
                 instructions=style,
                 api_key=key,
             )
-            if language == "en":
+            if language in ("en", "menu"):
                 self._mouths[language] = None
             elif language in DEEPGRAM_VOICES:
                 first = deepgram.TTS(
@@ -151,12 +163,24 @@ class Voices:
             args["tts"] = mouth
         return args
 
-    def menu_audio(self, language: str, text: str) -> AsyncIterable[rtc.AudioFrame]:
+    async def _synthesize(self, language: str, text: str) -> list[rtc.AudioFrame]:
         mouth = self._mouth(language) or build_tts(self._settings)
+        return [chunk.frame async for chunk in mouth.synthesize(text)]
+
+    async def warm_menu(self, lines: list[tuple[str, str]]) -> None:
+        """Make the audio of the menu lines, all at once, so no line waits for the one before."""
+        todo = [(language, text) for language, text in lines if (language, text) not in self._clips]
+        made = await asyncio.gather(*(self._synthesize(language, text) for language, text in todo))
+        self._clips.update(zip(todo, made, strict=True))
+
+    def menu_audio(self, language: str, text: str) -> AsyncIterable[rtc.AudioFrame]:
+        """The audio of a menu line, from `warm_menu` (made now if it was not)."""
 
         async def frames() -> AsyncIterable[rtc.AudioFrame]:
-            async for chunk in mouth.synthesize(text):
-                yield chunk.frame
+            if (language, text) not in self._clips:
+                await self.warm_menu([(language, text)])
+            for frame in self._clips[(language, text)]:
+                yield frame
 
         return frames()
 

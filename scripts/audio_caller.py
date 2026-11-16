@@ -8,6 +8,12 @@ worker is dispatched to that room. Afterwards it prints the call's record.
     uv run python scripts/audio_caller.py "Alex Rivera." "March 14th, 1990." \\
         "I need to move my appointment."
 
+A line can be prefixed to change how it is delivered:
+
+    "Paulina:Español, por favor."   spoken in another macOS voice (Paulina, Xander, Lana, ...)
+    "key:2"                         press a key on the keypad instead of speaking
+    "wait:6"                        say nothing for 6 seconds
+
 Needs LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET. On a Mac the caller's
 voice is the built-in one, so a run costs only what the agent's side costs.
 """
@@ -30,12 +36,13 @@ from livekit import api, rtc
 from clinic_voice_agent.settings import get_settings
 from clinic_voice_agent.worker import WORKER_NAME
 
+VOICES = {"Paulina", "Xander", "Lana", "Alex", "Samantha", "Daniel"}
 SAMPLE_RATE = 24000
 FRAME = SAMPLE_RATE // 50  # 20 ms of samples
 SILENCE = b"\x00\x00" * FRAME
 
 
-async def synthesise(http: aiohttp.ClientSession, text: str) -> bytes:
+async def synthesise(http: aiohttp.ClientSession, text: str, voice: str | None = None) -> bytes:
     """The line as 24 kHz mono speech.
 
     On a Mac the built-in voice is used: it is local and costs nothing, so
@@ -45,8 +52,8 @@ async def synthesise(http: aiohttp.ClientSession, text: str) -> bytes:
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "line.wav"
             process = await asyncio.create_subprocess_exec(
-                "say", "-o", str(path), "--file-format=WAVE",
-                f"--data-format=LEI16@{SAMPLE_RATE}", text,
+                "say", *(["-v", voice] if voice else []), "-o", str(path),
+                "--file-format=WAVE", f"--data-format=LEI16@{SAMPLE_RATE}", text,
             )  # fmt: skip
             await process.wait()
             with wave.open(str(path)) as audio:
@@ -148,7 +155,16 @@ async def main(lines: list[str]) -> int:
             for line in lines:
                 if not room.isconnected():
                     break
-                audio = await synthesise(http, line)
+                kind, _, rest = line.partition(":")
+                if kind == "wait":
+                    await asyncio.sleep(float(rest))
+                    continue
+                if kind == "key":
+                    await room.local_participant.publish_dtmf(code=int(rest), digit=rest)
+                    waits.append(await watch.has_finished_a_turn())
+                    continue
+                voice, text = (kind, rest) if kind in VOICES else (None, line)
+                audio = await synthesise(http, text, voice)
                 speech.put_nowait(audio)
                 await asyncio.sleep(len(audio) / (2 * SAMPLE_RATE))  # while the line is spoken
                 waits.append(await watch.has_finished_a_turn())
@@ -174,6 +190,9 @@ async def main(lines: list[str]) -> int:
     record = json.loads(Path(records[-1]).read_text())
     for line in record["transcript"]:
         print(f"{line['speaker']:>6}: {line['text']}")
+    for entry in record.get("timeline", []):
+        detail = {k: v for k, v in entry.items() if k not in ("t", "kind")}
+        print(f"  {entry['t']:>6.1f}s {entry['kind']:<22} {detail or ''}")
     for event in record["audit"]:
         print(f"  gateway: {event['operation']:<16} {event['outcome']:<8} {event['reason']}")
     for check in record["checks"]:

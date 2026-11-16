@@ -83,6 +83,9 @@ class Voices(Protocol):
     def menu_audio(self, language: str, text: str) -> AsyncIterable[rtc.AudioFrame]:
         """`text` spoken in the voice of `language`, as audio frames."""
 
+    async def warm_menu(self, lines: list[tuple[str, str]]) -> None:
+        """Have the audio of these (language, text) lines ready, all made at once."""
+
 
 @dataclass
 class CallState:
@@ -91,6 +94,16 @@ class CallState:
     gateway: Gateway
     now: datetime
     voices: Voices | None = None
+    phone: bool = False  # a phone caller has a keypad; a browser one does not
+    # True while the caller is choosing a language: nothing is expected to be understood yet.
+    choosing: bool = False
+    # Set by the language menu while it waits; a key press arrives here.
+    choice: asyncio.Future[str] | None = None
+
+    def choose(self, language: str) -> None:
+        """A language has been chosen (by the keypad). Does nothing when no one is choosing."""
+        if self.choice is not None and not self.choice.done():
+            self.choice.set_result(language)
 
     @property
     def language(self) -> str:
@@ -127,44 +140,6 @@ def split_opening(opening: str) -> tuple[str, str]:
     return (intro + ".", question) if intro else ("", opening)
 
 
-# How long, after the last language has been offered, the caller has to answer before the
-# first question is asked in English.
-MENU_PAUSE_SECONDS = 4.0
-
-
-async def offer_languages(
-    session: Any, lines: list[tuple[str, Any]], question: str, pause: float = MENU_PAUSE_SECONDS
-) -> bool:
-    """Say the introduction and the language lines, then wait for the caller to choose.
-
-    Returns True if the caller spoke, over the lines or in the pause after them: what they said
-    is then answered by the conversation as usual (a language, or the name), and the question
-    is not asked, so she never carries on in English over a choice. Returns False if the pause
-    passed in silence and the question was asked.
-    """
-    spoke = asyncio.Event()
-
-    def on_speaking(event: Any) -> None:
-        if getattr(event, "new_state", None) == "speaking":
-            spoke.set()
-
-    session.on("user_state_changed", on_speaking)
-    try:
-        handles = [session.say(text, audio=audio) for text, audio in lines]
-        await handles[-1].wait_for_playout()
-        if spoke.is_set() or any(handle.interrupted for handle in handles):
-            return True
-        try:
-            await asyncio.wait_for(spoke.wait(), timeout=pause)
-            return True
-        except TimeoutError:
-            pass
-    finally:
-        session.off("user_state_changed", on_speaking)
-    session.say(question)
-    return False
-
-
 def _voice_args(state: CallState | None, language: str) -> dict[str, Any]:
     return state.voices.agent_args(language) if state and state.voices else {}
 
@@ -184,10 +159,12 @@ class IdentifyCaller(Agent):
         name: str = "",
         switched: bool = False,
         state: CallState | None = None,
+        question_only: bool = False,
     ) -> None:
         self._direction = direction
         self._language = language
         self._switched = switched
+        self._question_only = question_only
         self._state = state
         super().__init__(
             instructions=style(language)
@@ -210,30 +187,23 @@ for each thing they ask.
 """
             + SWITCHING,
             tools=[_end_call()],
-            **(_voice_args(state, language) if switched else {}),
+            **(_voice_args(state, language) if switched or question_only else {}),
         )
         self._name = name
 
     async def on_enter(self) -> None:
         locale = locale_of(self._language)
-        if self._switched:
+        if self._question_only:
+            # The language menu ran out of time with no answer: carry on in English with the
+            # question the greeting would have ended on.
+            self.session.say(split_opening(opening_line(self._direction, self._language))[1])
+        elif self._switched:
             # In the new language, from where the call had got to: no greeting again.
             self.session.say(locale.ask_dob if self._name else locale.ask_name)
-            return
-        # A fixed greeting, not a generated one: the first thing a caller hears
-        # should be the same every time, and it should be fast.
-        opening = opening_line(self._direction, self._language)
-        others = [other for code, other in LOCALES.items() if code != self._language and other.menu]
-        if self._state is None or self._state.voices is None or not others:
-            self.session.say(opening)
-            return
-        # With voices to speak them: who is calling, then each other language in its own voice,
-        # then a pause for the caller's answer, and only if none comes, the first question.
-        intro, question = split_opening(opening)
-        lines = [(intro, None)] + [
-            (other.menu, self._state.voices.menu_audio(other.code, other.menu)) for other in others
-        ]
-        await offer_languages(self.session, lines, question)
+        else:
+            # A fixed greeting, not a generated one: the first thing a caller hears
+            # should be the same every time, and it should be fast.
+            self.session.say(opening_line(self._direction, self._language))
 
     @function_tool
     async def switch_language(self, ctx: RunContext[CallState], language: LanguageCode):
