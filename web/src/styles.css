@@ -85,3 +85,5 @@ button:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 55%, t
 .checks li { display: grid; gap: 3px; border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; }
 .facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 14px; margin: 0; }
 .facts dt { color: var(--muted); } .facts dd { margin: 0; overflow-wrap: anywhere; }
+
+.behind section { margin-top: 8px; }

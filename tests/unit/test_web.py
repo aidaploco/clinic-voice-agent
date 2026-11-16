@@ -108,3 +108,23 @@ async def test_a_record_is_served_only_for_a_room_name_from_this_page(tmp_path):
         assert (await c.get("/api/calls/console")).status == 400
     finally:
         await c.close()
+
+
+async def test_the_built_page_is_served_and_a_missing_build_says_how_to_make_one(tmp_path):
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>page</title>")
+    (dist / "assets" / "app.js").write_text("console.log(1)")
+    c = await client(tmp_path, web_dist=dist)
+    try:
+        assert "<title>page</title>" in await (await c.get("/")).text()
+        assert (await c.get("/assets/app.js")).status == 200
+    finally:
+        await c.close()
+
+    c = await client(tmp_path, web_dist=tmp_path / "not-built")
+    try:
+        missing = await c.get("/")
+        assert missing.status == 503 and "npm run build" in await missing.text()
+    finally:
+        await c.close()

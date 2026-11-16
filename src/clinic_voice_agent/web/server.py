@@ -19,9 +19,6 @@ from clinic_voice_agent.limits import calls_today
 from clinic_voice_agent.settings import Settings, get_settings
 from clinic_voice_agent.worker import WORKER_NAME
 
-HERE = Path(__file__).parent
-STATIC = HERE / "static"
-
 # Long enough to join, short enough that a leaked token is useless by the time it matters.
 TOKEN_LIFETIME = timedelta(minutes=5)
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
@@ -111,8 +108,17 @@ async def call_record(request: web.Request) -> web.Response:
     return web.json_response(record)
 
 
-async def index(request: web.Request) -> web.FileResponse:
-    return web.FileResponse(STATIC / "index.html")
+NOT_BUILT = (
+    "The page has not been built. In another terminal: cd web && npm ci && npm run build "
+    "(or `npm run dev` for development, which serves the page on http://127.0.0.1:5173)."
+)
+
+
+async def index(request: web.Request) -> web.StreamResponse:
+    page = request.app[SETTINGS].web_dist / "index.html"
+    if not await asyncio.to_thread(page.is_file):
+        raise web.HTTPServiceUnavailable(text=NOT_BUILT)
+    return web.FileResponse(page)
 
 
 def make_app(settings: Settings | None = None) -> web.Application:
@@ -121,9 +127,12 @@ def make_app(settings: Settings | None = None) -> web.Application:
     app.router.add_get("/", index)
     app.router.add_post("/api/token", token)
     app.router.add_get("/api/calls/{room}", call_record)
-    app.router.add_static("/static/", STATIC)
+    assets = app[SETTINGS].web_dist / "assets"
+    if assets.is_dir():
+        app.router.add_static("/assets/", assets)
     return app
 
 
 def main() -> None:
-    web.run_app(make_app(), host="127.0.0.1", port=8765)
+    settings = get_settings()
+    web.run_app(make_app(settings), host="127.0.0.1", port=settings.web_port)

@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     livekit_api_key: SecretStr | None = None
     livekit_api_secret: SecretStr | None = None
 
+    # Where the built browser page is (`npm run build` in web/ writes it).
+    web_dist: Path = Path("web/dist")
+    web_port: int = 8765
+
     # What a call may cost. A call is ended at the time limit; once the day's cap of calls
     # is reached, further callers are told so and hung up on.
     max_call_seconds: int = 300

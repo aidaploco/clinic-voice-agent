@@ -29,12 +29,15 @@ uv run python -m clinic_voice_agent.worker console    # talk to her in this term
 
 ### In a browser
 
+The page is React and TypeScript (see [ADR-0005](docs/adr/0005-react-frontend.md)), in `web/`. Build it once (Node 22.12 or newer), then run the worker and the page server:
+
 ```bash
+(cd web && npm ci && npm run build)
 uv run python -m clinic_voice_agent.worker start     # terminal 1: takes the calls
 uv run python -m clinic_voice_agent.web              # terminal 2: the page, at http://127.0.0.1:8765
 ```
 
-The page needs `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` in `.env` as well. It starts a call with a button, and shows the live transcript, every request the gateway allowed or refused as it happens, and the review once the call ends. It is meant to be run on your own machine: the server answers on `127.0.0.1` only, because a public address would let strangers spend your speech and model credit. A call ends after `MAX_CALL_SECONDS` (300), and once `DAILY_CALL_CAP` calls (25) have been made in a day callers are told so and hung up on.
+It needs `LIVEKIT_URL`, `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` in `.env` as well. It starts a call with a button, and shows the live transcript, every request the gateway allowed or refused as it happens, and the review once the call ends. For development, `cd web && npm run dev` serves the page on http://127.0.0.1:5173 and forwards its requests to the Python server. It is meant to be run on your own machine: the server answers on `127.0.0.1` only, because a public address would let strangers spend your speech and model credit. A call ends after `MAX_CALL_SECONDS` (300), and once `DAILY_CALL_CAP` calls (25) have been made in a day callers are told so and hung up on.
 
 Each call writes a record to `recordings/`: the transcript, every request the gateway allowed or refused, the review of the call, the appointment afterwards, why the call ended, any service errors, and how long each reply took.
 

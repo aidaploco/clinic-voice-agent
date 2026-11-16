@@ -1,6 +1,6 @@
 # ADR-0004: A browser page for talking to Emily
 
-Status: accepted, 2026-11-15
+Status: accepted, 2026-11-15. The decision on how the page is built was replaced by [ADR-0005](0005-react-frontend.md); everything else here stands.
 
 ## Context
 
@@ -10,7 +10,7 @@ Today the only ways to talk to Emily are the terminal `console` command and a sc
 
 **The page is run locally, not hosted.** `scripts/` start a small server on 127.0.0.1. A public URL would let strangers start calls that spend the owner's speech and model credit, and would break the rule that nothing stays running. Showing it publicly means a screenshot and a short recording in the README. Hosting is a separate decision for the owner.
 
-**One static page, no Node toolchain.** The page is plain HTML, CSS and JavaScript served by the same Python server, with the LiveKit browser client pinned to an exact version. A Node build would add a second toolchain, a lockfile and its own CI job; for one screen that is cost without benefit. If the page outgrows this, that becomes a new ADR.
+**(Replaced by ADR-0005) One static page, no Node toolchain.** The page is plain HTML, CSS and JavaScript served by the same Python server, with the LiveKit browser client pinned to an exact version. A Node build would add a second toolchain, a lockfile and its own CI job; for one screen that is cost without benefit. If the page outgrows this, that becomes a new ADR.
 
 **A token endpoint, server-side secret.** The browser asks the server for a token. The server holds the LiveKit secret, mints a token that lives a few minutes, uses a fresh random room for each call, and puts the agent dispatch inside the token, so Emily joins when the caller does and greets a room that has someone in it. The server binds to 127.0.0.1 only.
 

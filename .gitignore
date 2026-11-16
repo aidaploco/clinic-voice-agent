@@ -8,3 +8,7 @@ __pycache__/
 .DS_Store
 recordings/
 evals/reports/
+
+# the browser page
+web/node_modules/
+web/dist/
