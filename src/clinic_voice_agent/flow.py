@@ -120,6 +120,12 @@ def opening_line(direction: str, language: str = "en") -> str:
     return locale.outbound_greeting if direction == "outbound" else locale.greeting
 
 
+def split_opening(opening: str) -> tuple[str, str]:
+    """An opening line as (what introduces, the question it ends on)."""
+    intro, _, question = opening.rpartition(". ")
+    return (intro + ".", question) if intro else ("", opening)
+
+
 def _voice_args(state: CallState | None, language: str) -> dict[str, Any]:
     return state.voices.agent_args(language) if state and state.voices else {}
 
@@ -177,13 +183,19 @@ for each thing they ask.
             return
         # A fixed greeting, not a generated one: the first thing a caller hears
         # should be the same every time, and it should be fast.
-        self.session.say(opening_line(self._direction, self._language))
-        # Then, with voices to speak them, one line for each other language in its own voice.
-        if self._state is not None and self._state.voices is not None:
-            for code, other in LOCALES.items():
-                if code != self._language and other.menu:
-                    audio = self._state.voices.menu_audio(code, other.menu)
-                    self.session.say(other.menu, audio=audio)
+        opening = opening_line(self._direction, self._language)
+        others = [other for code, other in LOCALES.items() if code != self._language and other.menu]
+        if self._state is None or self._state.voices is None or not others:
+            self.session.say(opening)
+            return
+        # With voices to speak them: who is calling, then each other language in its own voice,
+        # and only then the first question, so the choice comes before anything is asked.
+        intro, question = split_opening(opening)
+        self.session.say(intro)
+        for other in others:
+            audio = self._state.voices.menu_audio(other.code, other.menu)
+            self.session.say(other.menu, audio=audio)
+        self.session.say(question)
 
     @function_tool
     async def switch_language(self, ctx: RunContext[CallState], language: LanguageCode):

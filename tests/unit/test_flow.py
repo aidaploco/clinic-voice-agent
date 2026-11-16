@@ -107,7 +107,7 @@ class FakeVoices:
         return {}
 
     def menu_audio(self, language, text):
-        return None
+        return object()  # stands for the frames of the line
 
 
 def tool_of(step, name):
@@ -184,3 +184,44 @@ def test_the_opening_line_follows_the_direction_and_the_language():
     assert opening_line("inbound", "bs").startswith("Hvala što ste nazvali")
     assert opening_line("outbound", "nl").startswith("Hallo, u spreekt met Emily")
     assert opening_line("outbound", "xx") == opening_line("outbound", "en")
+
+
+def test_every_opening_splits_into_an_introduction_and_the_question_it_ends_on():
+    from clinic_voice_agent.flow import split_opening
+    from clinic_voice_agent.locales import LOCALES
+
+    for lc in LOCALES.values():
+        for opening in (lc.greeting, lc.outbound_greeting):
+            intro, question = split_opening(opening)
+            assert intro.endswith(".") and question.endswith("?"), opening
+            assert f"{intro} {question}" == opening
+
+
+class SpokenLines:
+    """A session that records what is said, in order."""
+
+    def __init__(self):
+        self.said = []
+
+    def say(self, text, audio=None):
+        self.said.append((text, audio is not None))
+
+
+async def test_the_languages_are_offered_before_the_first_question_is_asked():
+    call = state()
+    call.voices = FakeVoices()
+    step = IdentifyCaller(state=call)
+    spoken = SpokenLines()
+    from unittest.mock import PropertyMock, patch
+
+    with patch.object(IdentifyCaller, "session", PropertyMock(return_value=spoken)):
+        await step.on_enter()
+    texts = [t for t, _ in spoken.said]
+    assert texts[0].startswith("Thank you for calling") and "full name" not in texts[0]
+    assert texts[1:4] == [
+        "Para continuar en español, diga español.",
+        "Voor Nederlands, zeg Nederlands.",
+        "Za bosanski, recite bosanski.",
+    ]
+    assert [with_audio for _, with_audio in spoken.said[1:4]] == [True, True, True]
+    assert texts[4] == "May I have your full name, please?" and len(texts) == 5
