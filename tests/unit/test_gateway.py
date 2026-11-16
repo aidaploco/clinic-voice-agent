@@ -257,3 +257,21 @@ def test_every_request_is_logged_allowed_or_refused():
         ("identity_check", "allowed"),
         ("offer_slots", "allowed"),
     ]
+
+
+async def test_an_observer_hears_each_audit_event_and_its_failure_never_reaches_the_call():
+    clinic = demo_clinic(NOW)
+    gateway = Gateway(clinic, NOW, consent=lambda *_: True)
+    heard = []
+    gateway.on_event = heard.append
+    gateway.verify_identity("Alex Rivera", date(1990, 3, 14))
+    assert (
+        [e.operation for e in heard] == ["identity_check"] == [e.operation for e in gateway.audit]
+    )
+
+    def broken(event):
+        raise RuntimeError("the page went away")
+
+    gateway.on_event = broken
+    gateway.offer_slots()  # must not raise
+    assert gateway.audit[-1].operation == "offer_slots"

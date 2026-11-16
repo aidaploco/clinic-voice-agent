@@ -17,7 +17,7 @@ from dotenv import load_dotenv
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
 from livekit.plugins import silero
 
-from clinic_voice_agent import limits, records, review, store, voice
+from clinic_voice_agent import limits, live, records, review, store, voice
 from clinic_voice_agent.clinic import demo_clinic
 from clinic_voice_agent.consent import ModelConsent
 from clinic_voice_agent.flow import CallState, IdentifyCaller
@@ -96,6 +96,9 @@ async def handle_call(ctx: JobContext) -> None:
     clinic = demo_clinic(started)
     llm = voice.build_llm(settings)
     gateway = Gateway(clinic, started, consent=ModelConsent(llm))
+    gateway.on_event = live.event_publisher(
+        lambda text, topic: ctx.room.local_participant.send_text(text, topic=topic)
+    )
     session = AgentSession[CallState](
         userdata=CallState(gateway=gateway, now=started),
         vad=ctx.proc.userdata["vad"],

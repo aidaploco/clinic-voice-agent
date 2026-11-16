@@ -20,13 +20,17 @@ code, not instructions:
   change carries the words the caller confirmed it with.
 """
 
+import logging
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any, Literal, Protocol
 
 from clinic_voice_agent.clinic import Appointment, Clinic, ClinicError, Patient, Slot
 from clinic_voice_agent.spoken import say_when
+
+logger = logging.getLogger(__name__)
 
 ChangeKind = Literal["move", "cancel", "confirm"]
 
@@ -103,6 +107,9 @@ class Gateway:
         self._offers: dict[str, Slot] = {}
         self._pending: Proposal | None = None
         self.audit: list[AuditEvent] = []
+        # Told of each audit event as it happens. Nothing by default; the worker sets it so a
+        # browser page can show the gateway's decisions live. It must never affect a call.
+        self.on_event: Callable[[AuditEvent], None] | None = None
 
     # ----- identity -------------------------------------------------------
 
@@ -285,9 +292,17 @@ class Gateway:
             )
         return appointment
 
+    def _log(self, event: AuditEvent) -> None:
+        self.audit.append(event)
+        if self.on_event is not None:
+            try:
+                self.on_event(event)
+            except Exception:
+                logger.exception("an observer of the audit log failed; the call goes on")
+
     def _allow(self, operation: str, **details: Any) -> None:
-        self.audit.append(AuditEvent(datetime.now(), operation, "allowed", details=details))
+        self._log(AuditEvent(datetime.now(), operation, "allowed", details=details))
 
     def _refuse(self, operation: str, reason: str, message: str, **details: Any) -> Refused:
-        self.audit.append(AuditEvent(datetime.now(), operation, "refused", reason, details))
+        self._log(AuditEvent(datetime.now(), operation, "refused", reason, details))
         return Refused(reason, message)
