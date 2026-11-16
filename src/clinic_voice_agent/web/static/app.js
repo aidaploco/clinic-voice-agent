@@ -111,6 +111,14 @@
       await room.connect(url, token);
       await room.startAudio();            // inside the click: browsers block sound otherwise
       els.start.hidden = true; els.end.hidden = false; startTimer(); say("Connected. Emily will greet you.");
+      // Only the agent ever joins the room. If nobody has after a few seconds, the usual cause
+      // is that the worker is not running, and a silent page gives no hint of that.
+      setTimeout(() => {
+        if (room && room.state === "connected" && room.remoteParticipants.size === 0) {
+          say("Emily has not joined the call. Is the worker running? In another terminal: "
+            + "uv run python -m clinic_voice_agent.worker start", true);
+        }
+      }, 10000);
       // Not awaited before the controls show: the browser's permission prompt can stay open.
       room.localParticipant.setMicrophoneEnabled(true).catch(() =>
         say("Microphone unavailable: you can listen, but she cannot hear you.", true));
