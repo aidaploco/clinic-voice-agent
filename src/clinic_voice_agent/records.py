@@ -32,6 +32,10 @@ def call_record(
     checks: list[dict[str, str]] | None = None,
     direction: str | None = None,
     timeline: list[dict[str, Any]] | None = None,
+    pipeline: str = "chain",
+    usage: list[dict[str, Any]] | None = None,
+    owed: list[str] | None = None,
+    consent_seen: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     patient = gateway.patient
     appointment = clinic.last_known_appointment(patient.id) if patient else None
@@ -57,6 +61,11 @@ def call_record(
         "messages": [m.text for m in clinic.messages],
         "latency_seconds": latency or {},
         "timeline": timeline or [],
+        "pipeline": pipeline,
+        "usage": usage or [],  # tokens, characters and seconds each model used in the call
+        # Phase 6: the fixed lines she was told to speak, and what the yes-check was shown
+        "owed_lines": owed or [],
+        "consent_seen": consent_seen or [],
         "transcript": transcript,
     }
 

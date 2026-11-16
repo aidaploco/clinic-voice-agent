@@ -86,6 +86,18 @@ def build_stt(settings: Settings, language: str = "multi"):
     )
 
 
+def build_realtime(settings: Settings):
+    """One speech-to-speech model in place of hearing, thinking and speaking (Phase 6)."""
+    from openai.types.realtime import AudioTranscription
+
+    return openai.realtime.RealtimeModel(
+        model=settings.realtime_model,
+        voice=settings.realtime_voice,
+        input_audio_transcription=AudioTranscription(model="gpt-4o-transcribe", language="en"),
+        api_key=settings.openai_api_key.get_secret_value(),
+    )
+
+
 def build_llm(settings: Settings):
     return openai.LLM(model=settings.llm_model, api_key=settings.openai_api_key.get_secret_value())
 

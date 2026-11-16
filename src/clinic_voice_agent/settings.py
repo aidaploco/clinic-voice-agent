@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,6 +33,16 @@ class Settings(BaseSettings):
     tts_providers: str = "deepgram,openai"
     deepgram_tts_model: str = "aura-2-thalia-en"
     openai_tts_voice: str = "coral"
+    # "chain" (hear, think, speak as three services) or "realtime" (one speech-to-speech model).
+    pipeline: Literal["chain", "realtime"] = "chain"
+    realtime_model: str = "gpt-realtime"
+    realtime_voice: str = "marin"
+    realtime_waits: bool = False  # commit_change waits for the caller's transcript (Phase 6)
+    # Off, the chain starts at the identity step, in English, as the realtime arm does (Phase 6).
+    language_menu: bool = True
+    # The worker's health-check port; unset, the framework's own (8081). 0 picks a free one, so
+    # two workers can run on one machine (the comparison in evals/compare_pipelines.py).
+    worker_port: int | None = None
     bosnian_tts_voice: str = "coral"  # chosen by listening to scripts/bosnian_voices.py
     elevenlabs_voice_id: str = "cgSgspJ2msm6clMCkdW9"
 

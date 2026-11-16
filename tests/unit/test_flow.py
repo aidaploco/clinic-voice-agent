@@ -1,5 +1,6 @@
 """The flow's structure: which step can do what. No model is involved here."""
 
+import asyncio
 from datetime import date, datetime
 
 import pytest
@@ -215,3 +216,100 @@ async def test_a_transcribers_echo_of_its_own_hint_is_not_a_turn_for_either_step
 def test_the_bosnian_prompt_says_how_dates_of_birth_are_said_and_the_others_do_not():
     assert "četrnaesti mart" in str(IdentifyCaller("inbound", "bs").instructions)
     assert "četrnaesti mart" not in str(IdentifyCaller("inbound", "nl").instructions)
+
+
+# ----- speech-to-speech (Phase 6) ------------------------------------------------------------
+
+
+class NoSay:
+    """A session that cannot `say`, as one without a text-to-speech service cannot."""
+
+    def say(self, *a, **k):
+        raise RuntimeError("no text-to-speech")
+
+    def generate_reply(self, instructions=None, **k):
+        self.told = instructions
+
+    def __init__(self):
+        from types import SimpleNamespace
+
+        self.items = [SimpleNamespace(role="user", text_content="The first one, please.")]
+
+    @property
+    def history(self):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(items=self.items)
+
+
+def verified_realtime():
+    from types import SimpleNamespace
+
+    call = state()
+    call.realtime = True
+    call.gateway.verify_identity("Alex Rivera", date(1990, 3, 14))
+    session = NoSay()
+    return call, HelpWithAppointment(call), SimpleNamespace(userdata=call, session=session), session
+
+
+async def test_in_a_speech_to_speech_call_the_offers_are_handed_back_to_be_spoken_as_written():
+    call, step, ctx, _ = verified_realtime()
+    result = await tool_of(step, "find_free_slots")(ctx)
+    assert result.reply_required is not False  # the model must speak: nothing else will
+    assert call.owed and call.owed[0] in str(result.output)
+    assert "word for word" in str(result.output)
+
+
+async def test_in_a_speech_to_speech_call_the_read_back_is_owed_and_must_be_spoken_as_written():
+    call, step, ctx, _ = verified_realtime()
+    await tool_of(step, "find_free_slots")(ctx)
+    offer_id = call.gateway.offer_slots()[0].id
+    result = await tool_of(step, "propose_change")(ctx, change="move", option=offer_id)
+    read_back = call.owed[-1]
+    assert read_back.endswith("Is that right?") and read_back in str(result.output)
+    assert "commit_change" in str(result.output) and result.reply_required is not False
+
+
+def test_a_fixed_line_is_spoken_by_the_model_when_there_is_no_voice_to_say_it_with():
+    from clinic_voice_agent.flow import speak_fixed
+
+    call = state()
+    call.realtime = True
+    session = NoSay()
+    speak_fixed(session, call, "May I have your full name, please?")
+    assert "May I have your full name, please?" in session.told
+    assert call.owed == ["May I have your full name, please?"]
+
+
+async def test_with_the_wait_on_the_commit_waits_for_the_callers_reply_to_reach_the_history():
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    call, step, ctx, session = verified_realtime()
+    call.waits_for_transcript = True
+    await tool_of(step, "find_free_slots")(ctx)
+    offer_id = call.gateway.offer_slots()[0].id
+    await tool_of(step, "propose_change")(ctx, change="move", option=offer_id)
+    items = session.items  # one earlier turn: "The first one, please."
+
+    # The caller's reply reaches the history only after the model has already called the tool.
+    async def late_reply():
+        await asyncio.sleep(0.25)
+        items.append(SimpleNamespace(role="user", text_content="Yes, that's right."))
+
+    task = asyncio.create_task(late_reply())
+    with patch.object(call.gateway, "_consent", lambda *a: asyncio.sleep(0, result=True)):
+        result = await tool_of(step, "commit_change")(ctx)
+    await task
+    assert "confirmed" in result
+
+
+async def test_without_the_wait_a_commit_before_the_reply_has_arrived_is_refused():
+    from livekit.agents import ToolError
+
+    call, step, ctx, _ = verified_realtime()
+    await tool_of(step, "find_free_slots")(ctx)
+    offer_id = call.gateway.offer_slots()[0].id
+    await tool_of(step, "propose_change")(ctx, change="move", option=offer_id)
+    with pytest.raises(ToolError):
+        await tool_of(step, "commit_change")(ctx)  # the caller has not spoken since the question

@@ -19,7 +19,7 @@ menu is spoken.
 
 import asyncio
 from collections.abc import AsyncIterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any, Literal, Protocol
 
@@ -95,6 +95,16 @@ class CallState:
     gateway: Gateway
     now: datetime
     voices: Voices | None = None
+    # A speech-to-speech model has no text-to-speech to `say` fixed lines with: the model is told
+    # to speak them instead, word for word (see `speak_fixed`). Phase 6.
+    realtime: bool = False
+    # A speech-to-speech model can act on the caller's reply before its transcript has reached
+    # the history. Set, `commit_change` waits (a little) for that transcript rather than being
+    # refused for want of an answer. The rule itself is unchanged: an answer must have been spoken.
+    waits_for_transcript: bool = False
+    proposed_at_turn: int = 0
+    owed: list[str] = field(default_factory=list)  # fixed lines she was asked to speak
+    consent_seen: list[dict[str, str]] = field(default_factory=list)  # what the yes-check got
     phone: bool = False  # a phone caller has a keypad; a browser one does not
     # True while the caller is choosing a language: nothing is expected to be understood yet.
     choosing: bool = False
@@ -139,6 +149,33 @@ def split_opening(opening: str) -> tuple[str, str]:
     """An opening line as (what introduces, the question it ends on)."""
     intro, _, question = opening.rpartition(". ")
     return (intro + ".", question) if intro else ("", opening)
+
+
+def word_for_word(text: str) -> str:
+    """What a speech-to-speech model is told so that it speaks a fixed line as written."""
+    return f'Say this to the caller exactly as written, word for word, and nothing else: "{text}"'
+
+
+def speak_fixed(session: Any, state: CallState | None, text: str) -> None:
+    """Have a fixed line spoken now (a greeting, a question): by `say`, or by telling the model."""
+    if state is not None and state.realtime:
+        state.owed.append(text)
+        session.generate_reply(instructions=word_for_word(text))
+    else:
+        session.say(text)
+
+
+async def say_and_wait(session: Any, state: CallState | None, text: str) -> None:
+    """Speak a fixed line and wait until it has been said (a goodbye before hanging up)."""
+    if state is not None and state.realtime:
+        state.owed.append(text)
+        await session.generate_reply(instructions=word_for_word(text))
+    else:
+        await session.say(text)
+
+
+# How long `commit_change` waits for the caller's reply to appear in the history.
+TRANSCRIPT_WAIT_SECONDS = 3.0
 
 
 async def ignore_a_transcribers_echo(new_message: Any) -> None:
@@ -206,14 +243,20 @@ for each thing they ask.
         if self._question_only:
             # The language menu ran out of time with no answer: carry on in English with the
             # question the greeting would have ended on.
-            self.session.say(split_opening(opening_line(self._direction, self._language))[1])
+            speak_fixed(
+                self.session,
+                self._state,
+                split_opening(opening_line(self._direction, self._language))[1],
+            )
         elif self._switched:
             # In the new language, from where the call had got to: no greeting again.
-            self.session.say(locale.ask_dob if self._name else locale.ask_name)
+            speak_fixed(
+                self.session, self._state, locale.ask_dob if self._name else locale.ask_name
+            )
         else:
             # A fixed greeting, not a generated one: the first thing a caller hears
             # should be the same every time, and it should be fast.
-            self.session.say(opening_line(self._direction, self._language))
+            speak_fixed(self.session, self._state, opening_line(self._direction, self._language))
 
     @function_tool
     async def switch_language(self, ctx: RunContext[CallState], language: LanguageCode):
@@ -381,12 +424,17 @@ they are coming. Never start a change as the call is ending.
             raise ToolError(str(refused)) from None
         if not offers:
             raise ToolError("There are no free times. Offer to take a message for the clinic team.")
-        ctx.session.say(offer_sentence(offers, self._language))
+        sentence = offer_sentence(offers, self._language)
+        options = [
+            {"option": offer.id, "when": offer.when, "practitioner": offer.practitioner}
+            for offer in offers
+        ]
+        if ctx.userdata.realtime:
+            ctx.userdata.owed.append(sentence)
+            return ToolResult({"options": options, "next": word_for_word(sentence)})
+        ctx.session.say(sentence)
         return ToolResult(
-            [
-                {"option": offer.id, "when": offer.when, "practitioner": offer.practitioner}
-                for offer in offers
-            ],
+            options,
             reply_required=False,  # she has already offered the times; nothing more to say
         )
 
@@ -404,10 +452,17 @@ they are coming. Never start a change as the call is ending.
             option: For a move only: the `option` of a time returned by `find_free_slots`.
         """
         turn, _ = _what_the_caller_said(ctx)
+        ctx.userdata.proposed_at_turn = turn
         try:
             proposal = ctx.userdata.gateway.propose(change, turn, option)
         except Refused as refused:
             raise ToolError(str(refused)) from None
+        if ctx.userdata.realtime:
+            ctx.userdata.owed.append(proposal.read_back)
+            return ToolResult(
+                f"{word_for_word(proposal.read_back)} Nothing has changed yet. Wait for the "
+                "caller's answer, then call `commit_change`."
+            )
         ctx.session.say(proposal.read_back)
         return ToolResult(
             "Nothing has changed yet. The question has been put to the caller. "
@@ -420,6 +475,13 @@ they are coming. Never start a change as the call is ending.
         """Carry out the change that was read back, after the caller has answered."""
         state = ctx.userdata
         turn, words = _what_the_caller_said(ctx)
+        waited = 0.0
+        while state.waits_for_transcript and turn <= state.proposed_at_turn:
+            if waited >= TRANSCRIPT_WAIT_SECONDS:
+                break
+            await asyncio.sleep(0.1)
+            waited += 0.1
+            turn, words = _what_the_caller_said(ctx)
         try:
             appointment = await state.gateway.commit(turn, words)
         except Refused as refused:

@@ -22,7 +22,7 @@ from clinic_voice_agent import limits, live, records, review, store, voice
 from clinic_voice_agent.allowlist import admit, admit_dialled
 from clinic_voice_agent.clinic import demo_clinic
 from clinic_voice_agent.consent import ModelConsent
-from clinic_voice_agent.flow import CallState
+from clinic_voice_agent.flow import CallState, IdentifyCaller, say_and_wait
 from clinic_voice_agent.gateway import Gateway
 from clinic_voice_agent.hearing import DeafnessWatch
 from clinic_voice_agent.latency import latency_of
@@ -63,7 +63,8 @@ def concurrency_load(worker: AgentServer) -> float:
     return limits.concurrency_load(len(worker.active_jobs), get_settings().max_concurrent_calls)
 
 
-server = AgentServer(load_fnc=concurrency_load)
+_port = get_settings().worker_port
+server = AgentServer(load_fnc=concurrency_load, **({} if _port is None else {"port": _port}))
 
 
 def load_models(proc: JobProcess) -> None:
@@ -140,23 +141,45 @@ async def handle_call(ctx: JobContext) -> None:
 
     clinic = demo_clinic(started)
     llm = voice.build_llm(settings)
-    gateway = Gateway(clinic, started, consent=ModelConsent(llm))
+    judge = ModelConsent(llm)
+    seen: list[dict[str, str]] = []
+
+    async def consent(read_back: str, caller_words: str) -> bool:
+        agreed = await judge(read_back, caller_words)
+        seen.append({"asked": read_back, "answer": caller_words, "agreed": str(agreed)})
+        return agreed
+
+    gateway = Gateway(clinic, started, consent=consent)
     gateway.on_event = live.event_publisher(
         lambda text, topic: ctx.room.local_participant.send_text(text, topic=topic)
     )
     timeline = Timeline()
     state = CallState(gateway=gateway, now=started, voices=voice.Voices(settings), phone=is_phone)
     watch_keypad(ctx.room, state, timeline)
-    session = AgentSession[CallState](
-        userdata=state,
-        vad=ctx.proc.userdata["vad"],
-        stt=voice.build_stt(settings),
-        llm=llm,
-        tts=voice.build_tts(settings),
-        turn_handling=voice.TURN_HANDLING,
-        user_away_timeout=settings.silence_seconds,  # both sides quiet this long: "away"
-        transcription_timeout=TRANSCRIPTION_TIMEOUT,
-    )
+    realtime = settings.pipeline == "realtime"
+    state.realtime = realtime
+    state.waits_for_transcript = realtime and settings.realtime_waits
+    state.consent_seen = seen
+    if realtime:
+        # One model hears and speaks. `llm` stays the text model that judges consent and writes
+        # the review: those must not depend on how the call itself is carried.
+        session = AgentSession[CallState](
+            userdata=state,
+            vad=ctx.proc.userdata["vad"],
+            llm=voice.build_realtime(settings),
+            user_away_timeout=settings.silence_seconds,
+        )
+    else:
+        session = AgentSession[CallState](
+            userdata=state,
+            vad=ctx.proc.userdata["vad"],
+            stt=voice.build_stt(settings, "multi" if settings.language_menu else "en-US"),
+            llm=llm,
+            tts=voice.build_tts(settings),
+            turn_handling=voice.TURN_HANDLING,
+            user_away_timeout=settings.silence_seconds,  # both sides quiet this long: "away"
+            transcription_timeout=TRANSCRIPTION_TIMEOUT,
+        )
 
     errors: list[dict[str, Any]] = []
     ending: dict[str, str] = {}
@@ -178,7 +201,7 @@ async def handle_call(ctx: JobContext) -> None:
 
     async def say_time_limit_goodbye() -> None:
         ending.setdefault("why", "time_limit")
-        await session.say(locale_of(gateway.language).time_limit_goodbye)
+        await say_and_wait(session, state, locale_of(gateway.language).time_limit_goodbye)
 
     time_limit = asyncio.create_task(
         limits.hang_up_after(settings.max_call_seconds, say_time_limit_goodbye, ctx.delete_room)
@@ -196,7 +219,7 @@ async def handle_call(ctx: JobContext) -> None:
 
         async def say_goodbye() -> None:
             ending.setdefault("why", why)
-            await session.say(goodbye)
+            await say_and_wait(session, state, goodbye)
 
         task = asyncio.create_task(limits.hang_up_after(0, say_goodbye, ctx.delete_room))
         hang_ups.add(task)  # a task nobody holds can be collected before it finishes
@@ -273,6 +296,10 @@ async def handle_call(ctx: JobContext) -> None:
             checks,
             direction="outbound" if direction == "outbound" else None,
             timeline=timeline.entries,
+            pipeline=settings.pipeline + ("+wait" if state.waits_for_transcript else ""),
+            usage=[u.model_dump() for u in session.usage.model_usage],
+            owed=state.owed,
+            consent_seen=state.consent_seen,
         )
         # The file first: it needs nothing but a disk, so a database that is
         # down cannot lose the record of a call.
@@ -287,7 +314,15 @@ async def handle_call(ctx: JobContext) -> None:
 
     ctx.add_shutdown_callback(write_record)
 
-    await session.start(agent=ChooseLanguage(direction, state, timeline), room=ctx.room)
+    # The language menu is built for the chain's separate speech services, so the speech-to-speech
+    # arm starts at the identity step, in English.
+    no_menu = realtime or not settings.language_menu
+    first = (
+        IdentifyCaller(direction, state=state)
+        if no_menu
+        else ChooseLanguage(direction, state, timeline)
+    )
+    await session.start(agent=first, room=ctx.room)
 
 
 if __name__ == "__main__":
