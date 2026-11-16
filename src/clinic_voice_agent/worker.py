@@ -14,10 +14,10 @@ from datetime import datetime
 from typing import Any
 
 from dotenv import load_dotenv
-from livekit.agents import AgentServer, AgentSession, JobContext, JobProcess, cli
+from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess, cli
 from livekit.plugins import silero
 
-from clinic_voice_agent import records, review, store, voice
+from clinic_voice_agent import limits, records, review, store, voice
 from clinic_voice_agent.clinic import demo_clinic
 from clinic_voice_agent.consent import ModelConsent
 from clinic_voice_agent.flow import CallState, IdentifyCaller
@@ -70,6 +70,18 @@ def describe_error(event: Any) -> dict[str, Any]:
     }
 
 
+async def turn_away(ctx: JobContext, settings: Any) -> None:
+    """The day's cap is reached: say so, hang up. No record is written, so a refusal is no call."""
+    logger.warning("daily call cap of %s reached; turning the call away", settings.daily_call_cap)
+    session = AgentSession(tts=voice.build_tts(settings))
+    await ctx.connect()
+    await session.start(
+        agent=Agent(instructions="You only announce that calls are closed."), room=ctx.room
+    )
+    await session.say(limits.CAP_REACHED)
+    ctx.delete_room()
+
+
 @server.rtc_session(agent_name=WORKER_NAME)
 async def handle_call(ctx: JobContext) -> None:
     settings = get_settings()
@@ -77,6 +89,10 @@ async def handle_call(ctx: JobContext) -> None:
         raise RuntimeError(f"cannot take calls: {', '.join(missing)} not set (see .env.example)")
 
     started = datetime.now()
+    if limits.calls_today(settings.recordings_dir, started) >= settings.daily_call_cap:
+        await turn_away(ctx, settings)
+        return
+
     clinic = demo_clinic(started)
     llm = voice.build_llm(settings)
     gateway = Gateway(clinic, started, consent=ModelConsent(llm))
@@ -107,7 +123,16 @@ async def handle_call(ctx: JobContext) -> None:
         ctx.delete_room()
         ctx.shutdown(reason=ending["why"])
 
+    async def say_time_limit_goodbye() -> None:
+        ending.setdefault("why", "time_limit")
+        await session.say(limits.TIME_LIMIT_GOODBYE)
+
+    time_limit = asyncio.create_task(
+        limits.hang_up_after(settings.max_call_seconds, say_time_limit_goodbye, ctx.delete_room)
+    )
+
     def on_close(event: Any) -> None:
+        time_limit.cancel()
         reason = str(getattr(event, "reason", "closed")).split(".")[-1].lower()
         ending.setdefault("why", CLOSE_REASONS.get(reason, reason))
 

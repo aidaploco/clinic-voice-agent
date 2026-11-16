@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     # Where each call's record (transcript and what the tools did) is written.
     recordings_dir: Path = Path("recordings")
 
+    # What a call may cost. A call is ended at the time limit; once the day's cap of calls
+    # is reached, further callers are told so and hung up on.
+    max_call_seconds: int = 300
+    daily_call_cap: int = 25
+
     # Postgres for call records. Optional: without it a call's record is the
     # JSON file only.
     database_url: SecretStr | None = None
