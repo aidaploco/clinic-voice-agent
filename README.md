@@ -66,6 +66,10 @@ Emily opens in English, says who she is, then offers each other language in that
 | Dutch | Deepgram `nova-3` | Deepgram Aura-2 (OpenAI as backup) | "half vijf 's middags" |
 | Bosnian | OpenAI `gpt-4o-transcribe`, told how a date is said | OpenAI `gpt-4o-mini-tts` | "pola pet poslijepodne" |
 
+![A call in Spanish: the three language lines in the transcript, then the call continuing in Spanish; the gateway's read-back in Spanish and the passed review](docs/images/page-es.png)
+
+A scripted audio call that chose Spanish with the keypad and moved the appointment. The transcript starts with the language menu; the gateway's read-back and the caller's "Sí, correcto" are shown on the right, and the review passed.
+
 The choice was made by measuring, not by reputation: [ADR-0010](docs/adr/0010-speech-by-language.md) has the round-trip word error of each service per language, and ADR-0011 what failed in the first live tries and why the menu is built the way it is. A speech-to-speech model was tried in place of the three services and was no faster, about four times the cost and no better to listen to, so it was not adopted ([ADR-0012](docs/adr/0012-speech-to-speech.md); the code is on the branch `phase-6-realtime`).
 
 ## What has been measured
